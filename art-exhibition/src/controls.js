@@ -1,10 +1,12 @@
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as THREE from 'three';
 
-// Room half-extents for clamping (matches room.js)
-const BOUND_X = 6.5;
-const BOUND_Z = 5.5;
-const EYE_Y   = 1.7;
+// Room half-extents — overridden at runtime via setBounds() after GLB loads
+let BOUND_X = 6.5;
+let BOUND_Z = 5.5;
+const EYE_Y = 1.7;
+
+export function setBounds(x, z) { BOUND_X = x; BOUND_Z = z; }
 
 const MOVE_SPEED = 4.0;   // metres per second
 
