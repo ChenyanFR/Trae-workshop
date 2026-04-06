@@ -10,8 +10,26 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { overflow: hidden; background: #0a0806; }
     canvas { display: block; }
+    #loading-screen {
+      position: fixed; inset: 0;
+      background: #0a0806;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #f0e6d0; font-family: serif; z-index: 9999;
+    }
+    #loading-screen h1 { font-size: 28px; letter-spacing: 0.2em; font-weight: normal; margin-bottom: 8px; }
+    #loading-screen p  { font-size: 12px; opacity: 0.4; letter-spacing: 0.15em; margin-bottom: 40px; }
+    #ld-track { width: 260px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; }
+    #ld-bar   { height: 100%; width: 0%; background: #c8903a; border-radius: 2px; transition: width 0.25s ease; }
+    #ld-pct   { margin-top: 14px; font-size: 11px; opacity: 0.35; letter-spacing: 0.15em; }
   </style>
   <body>
+    <div id="loading-screen">
+      <h1>Art Gallery</h1>
+      <p>VR EXHIBITION SPACE</p>
+      <div id="ld-track"><div id="ld-bar"></div></div>
+      <div id="ld-pct">Loading…</div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

@@ -1,11 +1,13 @@
-import { setRoomColor } from './room.js';
+import { setRoomColor, highlightWall } from './room.js';
 
 // ─── Surface definitions ──────────────────────────────────────────────────────
 const SURFACES = [
-  { id: 'mainWall', label: 'Main Wall',  current: '#8B1A1A' },
-  { id: 'sideWall', label: 'Side Walls', current: '#F5F0E8' },
-  { id: 'floor',    label: 'Floor',      current: '#1A1410' },
-  { id: 'ceiling',  label: 'Ceiling',    current: '#F0ECE2' },
+  { id: 'Exhibition_Wall_01',     label: 'Wall 1',    current: '#8B1A1A' },
+  { id: 'Exhibition_Wall_02',     label: 'Wall 2',    current: '#8B1A1A' },
+  { id: 'Exhibition_Wall_03',     label: 'Wall 3',    current: '#8B1A1A' },
+  { id: 'Exhibition_Wall_04',     label: 'Wall 4',    current: '#8B1A1A' },
+  { id: 'Exhibition_End_Wall_01', label: 'End Wall 1', current: '#8B1A1A' },
+  { id: 'Exhibition_End_Wall_02', label: 'End Wall 2', current: '#8B1A1A' },
 ];
 
 // ─── Curated museum palette ───────────────────────────────────────────────────
@@ -82,7 +84,7 @@ function buildWallColorPanel() {
   // ── Surface tabs ──────────────────────────────────────────────────────────
   const tabRow = document.createElement('div');
   Object.assign(tabRow.style, {
-    display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+    display: 'grid', gridTemplateColumns: 'repeat(3,1fr)',
     gap: '6px', marginBottom: '14px',
   });
 
@@ -103,6 +105,7 @@ function buildWallColorPanel() {
         b.style.borderColor = j === i ? '#c8903a' : '#5a3a10';
       });
       updatePreviewDot();
+      highlightWall(surf.id);
     };
     tb.addEventListener('click', setActive);
     tb.style.background = i === 0 ? 'rgba(200,144,58,0.35)' : 'rgba(255,255,255,0.05)';

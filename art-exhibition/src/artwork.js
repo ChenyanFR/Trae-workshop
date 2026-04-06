@@ -48,9 +48,9 @@ const FRAME_PRESETS = [
 const FRAME_THICKNESS = 0.06;
 const FRAME_DEPTH     = 0.05;
 const CANVAS_DEPTH    = 0.01;
-const WALL_OFFSET     = 0.02;
-const MIN_SIZE        = 0.3;
-const MAX_SIZE        = 2.5;
+const WALL_OFFSET     = 0.005; // 紧贴墙面，避免悬浮或插入墙里
+const MIN_SIZE        = 0.01;
+const MAX_SIZE        = 50;
 const SIZE_STEP       = 0.08;
 
 const WALLS = [
@@ -59,6 +59,18 @@ const WALLS = [
   { normal: new THREE.Vector3(1, 0,  0), point: new THREE.Vector3(-6.85, 0, 0),  rotY: -Math.PI / 2 },
   { normal: new THREE.Vector3(-1, 0, 0), point: new THREE.Vector3( 6.85, 0, 0),  rotY:  Math.PI / 2 },
 ];
+
+// GLB raycaster targets — wall mesh + any freestanding panels.
+// Set by main.js after the model loads.
+let _raycastTargets = [];
+export function setWallMesh(mesh) { _raycastTargets = [mesh]; }
+export function addRaycastTarget(mesh) { _raycastTargets.push(mesh); }
+
+// Predefined hanging slots (world positions of hidden Artpiece meshes).
+// When the ray hits the wall within SNAP_DIST of a slot, painting snaps there.
+const SNAP_DIST = 0.7; // metres
+let _hangingSlots = [];
+export function setHangingSlots(slots) { _hangingSlots = slots; }
 
 // ─── Build framed painting ────────────────────────────────────────────────────
 function buildFramedPainting(texture, width, height, pIdx) {
@@ -511,6 +523,38 @@ function getNDC(e) {
 
 function castOnWalls() {
   raycaster.setFromCamera(mouse, _camera);
+
+  // ── Primary: raycast directly against the GLB wall mesh ──────────────────
+  if (_raycastTargets.length > 0) {
+    const hits = raycaster.intersectObjects(_raycastTargets, false);
+    if (hits.length > 0) {
+      const hit  = hits[0];
+      const normal = hit.face.normal.clone()
+        .transformDirection(hit.object.matrixWorld)
+        .normalize();
+
+      // 确保法线朝向相机（房间内侧）
+      const toCamera = new THREE.Vector3().subVectors(_camera.position, hit.point);
+      if (normal.dot(toCamera) < 0) normal.negate();
+
+      // 吸附到最近的预设挂画点
+      let snapPoint = hit.point.clone();
+      if (_hangingSlots.length > 0) {
+        let minDist = SNAP_DIST;
+        for (const slotPos of _hangingSlots) {
+          const d = slotPos.distanceTo(hit.point);
+          if (d < minDist) { minDist = d; snapPoint = slotPos.clone(); }
+        }
+      }
+
+      const rotY = Math.atan2(normal.x, normal.z);
+      const wall = { normal, point: snapPoint, rotY };
+      return { wall, point: snapPoint };
+    }
+    return null;
+  }
+
+  // ── Fallback: hardcoded planes (procedural room) ──────────────────────────
   for (const wall of WALLS) {
     _plane.setFromNormalAndCoplanarPoint(wall.normal, wall.point);
     if (raycaster.ray.intersectPlane(_plane, _hitPt)) {
@@ -534,9 +578,9 @@ function snapToWall(group, point, wall) {
 }
 
 function clampToRoom(group) {
-  group.position.y = THREE.MathUtils.clamp(group.position.y, 0.3, 5.7);
-  group.position.x = THREE.MathUtils.clamp(group.position.x, -6.7, 6.7);
-  group.position.z = THREE.MathUtils.clamp(group.position.z, -5.8, 5.8);
+  group.position.y = THREE.MathUtils.clamp(group.position.y, 0.3, 10);
+  group.position.x = THREE.MathUtils.clamp(group.position.x, -20, 20);
+  group.position.z = THREE.MathUtils.clamp(group.position.z, -20, 20);
 }
 
 // ─── Event handlers ───────────────────────────────────────────────────────────
@@ -550,10 +594,9 @@ function onMouseMove(e) {
     return;
   }
 
-  if (!hangingMode) return;
   getNDC(e);
 
-  // Drag placed artwork along its wall
+  // Drag placed artwork along its wall (works in both hanging mode and normal mode)
   if (isDragging && selectedGroup) {
     _plane.setFromNormalAndCoplanarPoint(
       selectedGroup.userData.wallNormal, selectedGroup.userData.wallPoint
@@ -566,6 +609,8 @@ function onMouseMove(e) {
     }
     return;
   }
+
+  if (!hangingMode) return;
 
   // Preview placing
   if (placingGroup) {
@@ -627,12 +672,18 @@ function onMouseDown(e) {
     const parent = artworks.find(a =>
       a.children.some(ch => ch === artHits[0].object || ch === artHits[0].object.parent)
     );
-    if (parent) { selectArtwork(parent); isDragging = true; return; }
+    if (parent) {
+      selectArtwork(parent);
+      isDragging = true;
+      _controls.enabled = false; // prevent camera moving while dragging artwork
+      return;
+    }
   }
   deselectAll();
 }
 
 function onMouseUp() {
+  if (isDragging && !hangingMode) _controls.enabled = true;
   isDragging = false;
   isRotating = false;
 }

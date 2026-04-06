@@ -1,10 +1,12 @@
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as THREE from 'three';
 
-// Room half-extents for clamping (matches room.js)
-const BOUND_X = 6.5;
-const BOUND_Z = 5.5;
-const EYE_Y   = 1.7;
+// Room half-extents — overridden at runtime via setBounds() after GLB loads
+let BOUND_X = 6.5;
+let BOUND_Z = 5.5;
+const EYE_Y = 1.7;
+
+export function setBounds(x, z) { BOUND_X = x; BOUND_Z = z; }
 
 const MOVE_SPEED = 4.0;   // metres per second
 
@@ -26,7 +28,7 @@ export function initControls(camera, renderer) {
   controls.update();
 
   // ── Key state ────────────────────────────────────────────────────────────
-  const keys = { w: false, a: false, s: false, d: false };
+  const keys = { w: false, a: false, s: false, d: false, q: false, e: false };
 
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
@@ -50,7 +52,7 @@ export function initControls(camera, renderer) {
     const dt  = Math.min((now - lastTime) / 1000, 0.05); // seconds, capped
     lastTime  = now;
 
-    const moving = keys.w || keys.a || keys.s || keys.d;
+    const moving = keys.w || keys.a || keys.s || keys.d || keys.q || keys.e;
     if (moving) {
       // Horizontal forward = direction camera is looking, projected onto XZ plane
       camera.getWorldDirection(forward);
@@ -72,9 +74,12 @@ export function initControls(camera, renderer) {
       camera.position.add(delta);
       controls.target.add(delta);
 
-      // Lock Y to eye-level (no flying / crouching)
-      camera.position.y  = EYE_Y;
-      controls.target.y  = EYE_Y;
+      // Q/E vertical movement
+      if (keys.q || keys.e) {
+        const dy = (keys.q ? 1 : -1) * MOVE_SPEED * dt;
+        camera.position.y  = THREE.MathUtils.clamp(camera.position.y  + dy, 0.3, 5.5);
+        controls.target.y  = THREE.MathUtils.clamp(controls.target.y  + dy, 0.3, 5.5);
+      }
 
       // Clamp inside room walls
       camera.position.x  = THREE.MathUtils.clamp(camera.position.x, -BOUND_X, BOUND_X);
