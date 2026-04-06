@@ -49,8 +49,8 @@ const FRAME_THICKNESS = 0.06;
 const FRAME_DEPTH     = 0.05;
 const CANVAS_DEPTH    = 0.01;
 const WALL_OFFSET     = 0.005; // 紧贴墙面，避免悬浮或插入墙里
-const MIN_SIZE        = 0.3;
-const MAX_SIZE        = 2.5;
+const MIN_SIZE        = 0.01;
+const MAX_SIZE        = 50;
 const SIZE_STEP       = 0.08;
 
 const WALLS = [
@@ -594,10 +594,9 @@ function onMouseMove(e) {
     return;
   }
 
-  if (!hangingMode) return;
   getNDC(e);
 
-  // Drag placed artwork along its wall
+  // Drag placed artwork along its wall (works in both hanging mode and normal mode)
   if (isDragging && selectedGroup) {
     _plane.setFromNormalAndCoplanarPoint(
       selectedGroup.userData.wallNormal, selectedGroup.userData.wallPoint
@@ -610,6 +609,8 @@ function onMouseMove(e) {
     }
     return;
   }
+
+  if (!hangingMode) return;
 
   // Preview placing
   if (placingGroup) {
@@ -671,12 +672,18 @@ function onMouseDown(e) {
     const parent = artworks.find(a =>
       a.children.some(ch => ch === artHits[0].object || ch === artHits[0].object.parent)
     );
-    if (parent) { selectArtwork(parent); isDragging = true; return; }
+    if (parent) {
+      selectArtwork(parent);
+      isDragging = true;
+      _controls.enabled = false; // prevent camera moving while dragging artwork
+      return;
+    }
   }
   deselectAll();
 }
 
 function onMouseUp() {
+  if (isDragging && !hangingMode) _controls.enabled = true;
   isDragging = false;
   isRotating = false;
 }

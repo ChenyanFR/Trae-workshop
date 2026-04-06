@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader }  from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { setWallMaterial } from './room.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { setWallMaterialMap } from './room.js';
 import { setWallMesh, addRaycastTarget, setHangingSlots } from './artwork.js';
 import { setBounds }       from './controls.js';
 import { createLighting }  from './lighting.js';
@@ -9,6 +10,7 @@ import { createArtworks }  from './artwork.js';
 import { createInstallations } from './installation.js';
 import { initControls }    from './controls.js';
 import { initUI }          from './ui.js';
+import { setFloorMesh, initFloorUI } from './floor.js';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -29,12 +31,17 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type    = THREE.PCFShadowMap;
 renderer.toneMapping         = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.4;
+renderer.toneMappingExposure = 0.8;
 renderer.outputColorSpace    = THREE.SRGBColorSpace;
 document.body.appendChild(renderer.domElement);
 
+// ─── Environment map (fixes black metallic materials) ─────────────────────────
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+pmrem.dispose();
+
 // ─── Base lighting + controls (synchronous — work during loading too) ─────────
-scene.add(new THREE.AmbientLight(0xfff5e0, 1.2));
+scene.add(new THREE.AmbientLight(0xfff5e0, 0.3));
 const controls = initControls(camera, renderer);
 
 // ─── Render loop starts immediately (loading screen covers canvas) ────────────
@@ -65,7 +72,7 @@ const loader = new GLTFLoader();
 loader.setDRACOLoader(draco);
 
 loader.load(
-  '/gallery.glb',
+  '/Gallery Test.glb',
 
   // ── Success ──────────────────────────────────────────────────────────────────
   (gltf) => {
@@ -78,6 +85,9 @@ loader.load(
         c.receiveShadow = true;
         // Ensure Raycaster works on every mesh
         c.raycast = THREE.Mesh.prototype.raycast;
+        // Fix flipped normals: force double-sided rendering
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach(m => { m.side = THREE.DoubleSide; });
       }
     });
 
@@ -109,18 +119,29 @@ loader.load(
     setHangingSlots(hangingSlots);
     console.log(`[Main] ${hangingSlots.length} 个预设挂画点已注册`);
 
-    // ── Register the wall mesh for colour panel + artwork raycasting ──────────
-    const wallMesh = gltf.scene.getObjectByName('Art_Gallery_Walls_0');
-    if (wallMesh) {
-      // Wall colour panel
-      const mats = Array.isArray(wallMesh.material)
-        ? wallMesh.material : [wallMesh.material];
-      setWallMaterial(mats);
-
-      // Artwork hanging raycaster
-      setWallMesh(wallMesh);
-    } else {
-      console.warn('[Main] Art_Gallery_Walls_0 not found — artwork hanging uses fallback planes');
+    // ── Register wall materials for colour panel ──────────────────────────────
+    const WALL_NAMES = [
+      'Exhibition_Wall_01', 'Exhibition_Wall_02',
+      'Exhibition_Wall_03', 'Exhibition_Wall_04',
+      'Exhibition_End_Wall_01', 'Exhibition_End_Wall_02',
+    ];
+    const wallMaterialMap = {};
+    const wallMeshes = [];
+    gltf.scene.traverse(child => {
+      if (!child.isMesh || !WALL_NAMES.includes(child.name)) return;
+      // Clone materials so each wall is independent
+      const cloned = Array.isArray(child.material)
+        ? child.material.map(m => m.clone())
+        : [child.material.clone()];
+      child.material = Array.isArray(child.material) ? cloned : cloned[0];
+      wallMaterialMap[child.name] = cloned;
+      wallMeshes.push(child);
+    });
+    setWallMaterialMap(wallMaterialMap);
+    // Register all wall meshes as raycast targets so paintings can hang on any wall
+    if (wallMeshes.length > 0) {
+      setWallMesh(wallMeshes[0]);
+      wallMeshes.slice(1).forEach(m => addRaycastTarget(m));
     }
 
     // ── 独立展板（不靠墙）加入 raycaster，设为双面 ──────────────────────────
@@ -136,8 +157,16 @@ loader.load(
       console.log('[Main] 独立展板已加入 raycaster:', child.name);
     });
 
+    // ── Register floor mesh for material switching ────────────────────────────
+    const floorObj = gltf.scene.getObjectByName('Floor');
+    if (floorObj) {
+      floorObj.material = Array.isArray(floorObj.material)
+        ? floorObj.material.map(m => m.clone()) : floorObj.material.clone();
+      setFloorMesh(floorObj);
+    }
+
     // ── Derive walkable bounds from floor mesh ────────────────────────────────
-    const floorMesh = gltf.scene.getObjectByName('Art_Gallery_Floor_0');
+    const floorMesh = floorObj || gltf.scene.getObjectByName('Art_Gallery_Floor_0');
     if (floorMesh) {
       floorMesh.geometry.computeBoundingBox();
       const bb = floorMesh.geometry.boundingBox;
@@ -156,13 +185,14 @@ loader.load(
     }
 
     // ── Room lighting ─────────────────────────────────────────────────────────
-    scene.add(new THREE.HemisphereLight(0xfff5e0, 0x303030, 1.2));
+    scene.add(new THREE.HemisphereLight(0xfff5e0, 0x303030, 0.4));
 
     // ── Initialise interactive systems ────────────────────────────────────────
-    createLighting(scene);
+    // createLighting(scene); // disabled: old room coords don't match new GLB
     createArtworks(scene, camera, renderer, controls);
     createInstallations(scene, camera, renderer, controls);
     initUI();
+    initFloorUI();
 
     hideLoadingScreen();
   },
