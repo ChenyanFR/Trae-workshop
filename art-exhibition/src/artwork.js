@@ -74,8 +74,11 @@ export function setHangingSlots(slots) { _hangingSlots = slots; }
 
 // ─── Build framed painting ────────────────────────────────────────────────────
 function buildFramedPainting(texture, width, height, pIdx) {
-  const preset = FRAME_PRESETS[pIdx % FRAME_PRESETS.length];
-  const group  = new THREE.Group();
+  const preset  = FRAME_PRESETS[pIdx % FRAME_PRESETS.length];
+  const group   = new THREE.Group();
+  const isVideo = texture?.image instanceof HTMLVideoElement;
+  const videoEl = isVideo ? texture.image : null;
+
   const frameMat = new THREE.MeshStandardMaterial({
     color: preset.color, roughness: preset.roughness, metalness: preset.metalness,
   });
@@ -103,6 +106,8 @@ function buildFramedPainting(texture, width, height, pIdx) {
   group.add(canvas);
 
   group.userData.isArtwork  = true;
+  group.userData.isVideo    = isVideo;
+  group.userData.videoEl    = videoEl;
   group.userData.presetIdx  = pIdx;
   group.userData.artWidth   = width;
   group.userData.artHeight  = height;
@@ -115,7 +120,8 @@ function buildFramedPainting(texture, width, height, pIdx) {
 // ─── Rebuild painting at new size ─────────────────────────────────────────────
 function resizePainting(group, newSize) {
   const tex    = group.userData.artTexture;
-  const aspect = tex?.image ? tex.image.width / tex.image.height : 1;
+  const img    = tex?.image;
+  const aspect = img ? ((img.videoWidth || img.width) / (img.videoHeight || img.height)) || 1 : 1;
   removeRotHandle(group);
   _scene.remove(group);
   const ng = buildFramedPainting(tex, newSize * aspect, newSize, group.userData.presetIdx);
@@ -244,6 +250,12 @@ function adjustSelectedSize(delta) {
 function deleteSelected() {
   if (!selectedGroup) return;
   removeRotHandle(selectedGroup);
+  // Clean up video resources
+  if (selectedGroup.userData.videoEl) {
+    const v = selectedGroup.userData.videoEl;
+    v.pause();
+    if (v.src.startsWith('blob:')) URL.revokeObjectURL(v.src);
+  }
   _scene.remove(selectedGroup);
   artworks = artworks.filter(a => a !== selectedGroup);
   selectedGroup = null;
@@ -440,7 +452,7 @@ function buildUploadBtn() {
   document.body.appendChild(uploadBtn);
 
   const fileInput = document.createElement('input');
-  fileInput.type = 'file'; fileInput.accept = 'image/*';
+  fileInput.type = 'file'; fileInput.accept = 'image/*,video/*';
   fileInput.multiple = true; fileInput.style.display = 'none';
   document.body.appendChild(fileInput);
   uploadBtn.addEventListener('click', () => fileInput.click());
@@ -475,16 +487,35 @@ function onFilesSelected(e) {
   if (!files.length) return;
   pendingTextures = [];
   let loaded = 0;
+  const total = files.length;
   files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      new THREE.TextureLoader().load(ev.target.result, tex => {
+    if (file.type.startsWith('video/')) {
+      // ── Video file: create HTMLVideoElement + VideoTexture ──────────────────
+      const videoEl = document.createElement('video');
+      videoEl.src = URL.createObjectURL(file);
+      videoEl.loop = true;
+      videoEl.muted = true;
+      videoEl.playsInline = true;
+      videoEl.crossOrigin = 'anonymous';
+      videoEl.addEventListener('loadedmetadata', () => {
+        const tex = new THREE.VideoTexture(videoEl);
         tex.colorSpace = THREE.SRGBColorSpace;
         pendingTextures.push(tex);
-        if (++loaded === files.length) { changingFrameFor = null; showFramePanel(); }
-      });
-    };
-    reader.readAsDataURL(file);
+        if (++loaded === total) { changingFrameFor = null; showFramePanel(); }
+      }, { once: true });
+      videoEl.load();
+    } else {
+      // ── Image file: existing path ───────────────────────────────────────────
+      const reader = new FileReader();
+      reader.onload = ev => {
+        new THREE.TextureLoader().load(ev.target.result, tex => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          pendingTextures.push(tex);
+          if (++loaded === total) { changingFrameFor = null; showFramePanel(); }
+        });
+      };
+      reader.readAsDataURL(file);
+    }
   });
   e.target.value = '';
 }
@@ -507,7 +538,8 @@ function exitHangingMode() {
 function spawnNextPainting() {
   if (!pendingTextures.length) { exitHangingMode(); return; }
   const tex    = pendingTextures.shift();
-  const aspect = tex.image ? tex.image.width / tex.image.height : 1;
+  const img    = tex.image;
+  const aspect = img ? ((img.videoWidth || img.width) / (img.videoHeight || img.height)) || 1 : 1;
   placingGroup = buildFramedPainting(tex, currentSize * aspect, currentSize, presetIdx);
   placingGroup.userData.artSize = currentSize;
   placingGroup.visible = false;
@@ -640,6 +672,11 @@ function onMouseDown(e) {
       if (hit) {
         snapToWall(placingGroup, hit.point, hit.wall);
         artworks.push(placingGroup);
+        // Start video playing immediately — this click IS the user gesture,
+        // so play() will succeed even for muted autoplay
+        if (placingGroup.userData.videoEl) {
+          placingGroup.userData.videoEl.play().catch(() => {});
+        }
         placingGroup = null;
         spawnNextPainting();
       }
@@ -694,7 +731,8 @@ function onWheel(e) {
     const d = e.deltaY > 0 ? -SIZE_STEP : SIZE_STEP;
     currentSize = THREE.MathUtils.clamp(currentSize + d, MIN_SIZE, MAX_SIZE);
     const tex    = placingGroup.userData.artTexture;
-    const aspect = tex?.image ? tex.image.width / tex.image.height : 1;
+    const timg   = tex?.image;
+    const aspect = timg ? ((timg.videoWidth || timg.width) / (timg.videoHeight || timg.height)) || 1 : 1;
     const pos = placingGroup.position.clone(), rot = placingGroup.rotation.clone();
     const vis = placingGroup.visible;
     const wn  = placingGroup.userData.wallNormal?.clone();
@@ -721,6 +759,26 @@ function onKeyDown(e) {
     return;
   }
   if (e.key === 'Delete') deleteSelected();
+}
+
+// ─── Proximity-based video playback ───────────────────────────────────────────
+const PLAY_DIST  = 3; // metres — unmute + play
+const PAUSE_DIST = 5; // metres — mute + pause
+
+export function tickVideoArtworks(camera) {
+  for (const group of artworks) {
+    if (!group.userData.isVideo || !group.userData.videoEl) continue;
+    const videoEl = group.userData.videoEl;
+    const dist = camera.position.distanceTo(group.position);
+
+    if (dist < PLAY_DIST) {
+      if (videoEl.paused) videoEl.play().catch(() => {});
+      videoEl.muted = false;
+    } else if (dist > PAUSE_DIST) {
+      if (!videoEl.paused) videoEl.pause();
+      videoEl.muted = true;
+    }
+  }
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

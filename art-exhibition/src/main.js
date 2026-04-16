@@ -6,7 +6,7 @@ import { setWallMaterialMap } from './room.js';
 import { setWallMesh, addRaycastTarget, setHangingSlots } from './artwork.js';
 import { setBounds }       from './controls.js';
 import { createLighting }  from './lighting.js';
-import { createArtworks }  from './artwork.js';
+import { createArtworks, tickVideoArtworks } from './artwork.js';
 import { createInstallations } from './installation.js';
 import { initControls }    from './controls.js';
 import { initUI }          from './ui.js';
@@ -48,6 +48,7 @@ const controls = initControls(camera, renderer);
 function animate() {
   requestAnimationFrame(animate);
   controls.tick();
+  tickVideoArtworks(camera);
   renderer.render(scene, camera);
 }
 animate();
