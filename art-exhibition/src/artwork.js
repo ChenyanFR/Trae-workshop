@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { openInfoEditor, isEditorOpen } from './artworkInfo.js';
+import { openInfoEditor, isEditorOpen, resetHoverState } from './artworkInfo.js';
 import { isCurator, onModeChange } from './userMode.js';
+import { flyTo } from './controls.js';
 import { openFocus, closeFocus, isFocusOpen, onFocusSwipeRight } from './focusMode.js';
 import { openDetail, isDetailOpen } from './artworkDetail.js';
 
@@ -996,10 +997,33 @@ function onCanvasClick(e) {
 }
 
 function onCanvasDblClick(e) {
-  if (!isCurator()) return;
-  if (isEditorOpen() || hangingMode || editMode) return;
-  const parent = hitArtwork(e);
-  if (parent) openFocus(parent);
+  if (isFocusOpen() || isEditorOpen()) return;
+
+  // Curator only: double-click artwork → focus mode
+  if (isCurator() && !hangingMode && !editMode) {
+    const parent = hitArtwork(e);
+    if (parent) { openFocus(parent); return; }
+  }
+
+  // Both modes: double-click wall → fly camera to face it
+  if (_raycastTargets.length > 0) {
+    getNDC(e);
+    raycaster.setFromCamera(mouse, _camera);
+    const wallHits = raycaster.intersectObjects(_raycastTargets, false);
+    if (wallHits.length > 0) {
+      const hit    = wallHits[0];
+      const normal = hit.face.normal.clone()
+        .transformDirection(hit.object.matrixWorld).normalize();
+      if (normal.dot(new THREE.Vector3().subVectors(_camera.position, hit.point)) < 0) normal.negate();
+      const lookAt = new THREE.Vector3(hit.point.x, 1.7, hit.point.z);
+      const camPos = new THREE.Vector3(
+        hit.point.x + normal.x * 4,
+        1.7,
+        hit.point.z + normal.z * 4,
+      );
+      flyTo(camPos, lookAt);
+    }
+  }
 }
 
 // ─── Context menu ─────────────────────────────────────────────────────────────
@@ -1104,6 +1128,7 @@ export function createArtworks(scene, camera, renderer, controls) {
   onModeChange(() => {
     if (isFocusOpen()) closeFocus();
     if (editMode) exitEditMode();
+    resetHoverState();
     if (hangingMode) exitHangingMode();
     removeCtxMenu();
     deselectAll();

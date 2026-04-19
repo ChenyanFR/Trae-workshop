@@ -63,10 +63,9 @@ function injectStyles() {
     #artwork-detail-overlay { transition: opacity 0.4s ease; }
     #artwork-detail-overlay .det-left  { animation: detailSlideLeft  0.5s ease-out both; }
     #artwork-detail-overlay .det-right { animation: detailSlideRight 0.5s ease-out 0.1s both; }
-    #artwork-detail-overlay .det-right::-webkit-scrollbar { width: 4px; }
-    #artwork-detail-overlay .det-right::-webkit-scrollbar-thumb { background: rgba(90,70,50,0.25); border-radius: 2px; }
-    #artwork-detail-overlay .det-desc::-webkit-scrollbar { width: 4px; }
-    #artwork-detail-overlay .det-desc::-webkit-scrollbar-thumb { background: rgba(90,70,50,0.18); border-radius: 2px; }
+    #artwork-detail-overlay .det-scroll { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.2) transparent; }
+    #artwork-detail-overlay .det-scroll::-webkit-scrollbar { width: 6px; }
+    #artwork-detail-overlay .det-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
   `;
   document.head.appendChild(s);
 }
@@ -154,62 +153,100 @@ function populateOverlay(group) {
   addSwipeLeft(leftPanel, goBack);
   _overlay.appendChild(leftPanel);
 
-  // ── Right panel: info card ─────────────────────────────────────────────────
+  // ── Right panel: sticky header + scrollable body ──────────────────────────
   const rightPanel = document.createElement('div');
   rightPanel.className = 'det-right';
   Object.assign(rightPanel.style, {
-    flex: '1',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    padding: '80px 0', boxSizing: 'border-box',
-    overflowY: 'auto',
+    flex: '1', display: 'flex', flexDirection: 'column',
+    height: '100vh', boxSizing: 'border-box', overflow: 'hidden',
   });
 
-  const card = document.createElement('div');
-  Object.assign(card.style, {
-    background: 'rgba(255,255,255,0.70)',
-    padding: '60px 80px',
-    borderRadius: '2px',
-    maxWidth: '560px', width: '100%',
-    boxSizing: 'border-box',
+  // Sticky header: title + subtitle
+  const header = document.createElement('div');
+  Object.assign(header.style, {
+    flexShrink: '0',
+    padding: '60px 80px 30px 80px',
+    borderBottom: '1px solid rgba(0,0,0,0.1)',
+    background: '#f5f1e8',
   });
 
-  // Title
   const h1 = document.createElement('h1');
   h1.textContent = info.title || 'Untitled';
   Object.assign(h1.style, {
     fontFamily: "'SimSun', '宋体', 'Noto Serif SC', Georgia, serif",
     fontSize: '42px', fontWeight: 'normal',
-    color: '#2a2218', margin: '0 0 40px 0', lineHeight: '1.2',
+    color: '#2a2218', margin: '0 0 12px 0', lineHeight: '1.2',
   });
-  card.appendChild(h1);
+  header.appendChild(h1);
 
-  // Description (scrollable)
+  const subtitleParts = [info.artist, info.year].filter(Boolean);
+  if (subtitleParts.length) {
+    const sub = document.createElement('div');
+    sub.textContent = subtitleParts.join('  ·  ');
+    Object.assign(sub.style, {
+      fontSize: '14px', color: '#8a7a6a',
+      fontFamily: 'Georgia, serif', fontStyle: 'italic',
+    });
+    header.appendChild(sub);
+  }
+  rightPanel.appendChild(header);
+
+  // Scrollable content area
+  const scrollArea = document.createElement('div');
+  scrollArea.className = 'det-scroll';
+  Object.assign(scrollArea.style, {
+    flex: '1', overflowY: 'auto',
+    padding: '30px 60px 60px 80px', boxSizing: 'border-box',
+  });
+
+  // Video URL player (16:9)
+  if (info.videoURL) {
+    const embedUrl  = getEmbedUrl(info.videoURL);
+    const isDirectV = /\.(mp4|webm|ogg)(\?|$)/i.test(info.videoURL);
+    const aspect = document.createElement('div');
+    Object.assign(aspect.style, {
+      position: 'relative', width: '100%',
+      paddingTop: '56.25%', marginBottom: '32px',
+      background: '#000', borderRadius: '4px', overflow: 'hidden',
+    });
+    if (embedUrl) {
+      const iframe = document.createElement('iframe');
+      iframe.src = embedUrl;
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      Object.assign(iframe.style, { position: 'absolute', top: '0', left: '0', width: '100%', height: '100%', border: 'none' });
+      aspect.appendChild(iframe);
+    } else if (isDirectV) {
+      const vid = document.createElement('video');
+      vid.src = info.videoURL; vid.controls = true;
+      Object.assign(vid.style, { position: 'absolute', top: '0', left: '0', width: '100%', height: '100%' });
+      aspect.appendChild(vid);
+    }
+    scrollArea.appendChild(aspect);
+  }
+
+  // Description
   if (info.description) {
     const desc = document.createElement('div');
-    desc.className = 'det-desc';
     Object.assign(desc.style, {
       fontSize: '15px', lineHeight: '2.0',
-      color: '#3a3228', textIndent: '2em',
-      maxHeight: '40vh', overflowY: 'auto',
+      color: '#3a3228', textIndent: '2em', marginBottom: '40px',
     });
     const paragraphs = info.description.split('\n').filter(p => p.trim());
     if (paragraphs.length > 1) {
       paragraphs.forEach(text => {
         const p = document.createElement('p');
-        p.textContent = text;
-        p.style.margin = '0 0 1em 0';
+        p.textContent = text; p.style.margin = '0 0 1em 0';
         desc.appendChild(p);
       });
     } else {
       desc.textContent = info.description;
     }
-    card.appendChild(desc);
+    scrollArea.appendChild(desc);
   }
 
-  // Meta
+  // Meta (medium + dimensions; artist/year already in header)
   const metaRows = [
-    ['Artist',     info.artist],
-    ['Year',       info.year],
     ['Medium',     info.medium],
     ['Dimensions', info.dimensions],
   ].filter(([, v]) => v);
@@ -217,10 +254,9 @@ function populateOverlay(group) {
   if (metaRows.length || info.videoURL) {
     const meta = document.createElement('div');
     Object.assign(meta.style, {
-      marginTop: '40px', paddingTop: '20px',
+      paddingTop: '20px',
       borderTop: '1px solid rgba(90,70,50,0.18)',
-      fontSize: '12px', color: '#8a7a6a',
-      fontFamily: 'Georgia, serif',
+      fontSize: '12px', color: '#8a7a6a', fontFamily: 'Georgia, serif',
     });
     metaRows.forEach(([label, value]) => {
       const row = document.createElement('div');
@@ -234,20 +270,28 @@ function populateOverlay(group) {
       link.textContent = '▶  Watch Video';
       Object.assign(link.style, {
         display: 'inline-block', marginTop: '12px',
-        color: '#7a5020', fontSize: '12px',
-        fontFamily: 'Georgia, serif', textDecoration: 'none',
-        letterSpacing: '0.04em', transition: 'color 0.15s',
+        color: '#7a5020', fontSize: '12px', fontFamily: 'Georgia, serif',
+        textDecoration: 'none', letterSpacing: '0.04em', transition: 'color 0.15s',
       });
       link.addEventListener('mouseenter', () => link.style.color = '#c8903a');
       link.addEventListener('mouseleave', () => link.style.color = '#7a5020');
       meta.appendChild(link);
     }
-    card.appendChild(meta);
+    scrollArea.appendChild(meta);
   }
 
-  rightPanel.appendChild(card);
+  rightPanel.appendChild(scrollArea);
   addSwipeLeft(rightPanel, goBack);
   _overlay.appendChild(rightPanel);
+}
+
+// ─── Embed URL helper ─────────────────────────────────────────────────────────
+function getEmbedUrl(url) {
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vm = url.match(/vimeo\.com\/(\d+)/);
+  if (vm) return `https://player.vimeo.com/video/${vm[1]}`;
+  return null;
 }
 
 // ─── Swipe-left helper ────────────────────────────────────────────────────────

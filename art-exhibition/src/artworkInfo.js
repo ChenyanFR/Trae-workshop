@@ -163,7 +163,7 @@ export function isEditorOpen() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let _card = null;
-let _cardHovered  = false;
+let _cardHovered   = false;
 let _lastCardGroup = null;
 let _timedOutGroup = null;
 let _cardShowTime  = 0;
@@ -171,11 +171,193 @@ let _hideTimeout   = null;
 const CARD_TTL_MS  = 3000;
 const HIDE_DELAY   = 300;
 
+// ── Visitor right-side panel (positioned next to artwork) ────────────────────
+let _visitorCard   = null;
+let _vcHovered     = false;
+const VC_WIDTH     = 400;
+
+function buildVisitorCard() {
+  _visitorCard = document.createElement('div');
+  Object.assign(_visitorCard.style, {
+    position: 'fixed',
+    left: '-9999px', top: '0',          // parked off-screen until positioned
+    width: VC_WIDTH + 'px', maxHeight: '50vh',
+    background: 'rgba(255,250,240,0.95)',
+    padding: '28px 36px', boxSizing: 'border-box',
+    borderRadius: '4px',
+    boxShadow: '0 4px 32px rgba(0,0,0,0.22)',
+    backdropFilter: 'blur(10px)',
+    overflowY: 'auto',
+    transition: 'transform 0.3s ease-out, opacity 0.3s ease-out',
+    zIndex: 150, opacity: '0', pointerEvents: 'none',
+    fontFamily: 'Georgia, serif',
+    transform: 'translateY(-50%) translateX(0)',
+  });
+  _visitorCard.id = 'visitor-hover-card';
+  _visitorCard.addEventListener('mouseenter', () => { _vcHovered = true;  cancelHide(); });
+  _visitorCard.addEventListener('mouseleave', () => { _vcHovered = false; scheduleHide(); });
+
+  if (!document.getElementById('visitor-hover-card-css')) {
+    const s = document.createElement('style');
+    s.id = 'visitor-hover-card-css';
+    s.textContent = `
+      #visitor-hover-card { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent; }
+      #visitor-hover-card::-webkit-scrollbar { width: 4px; }
+      #visitor-hover-card::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
+      #visitor-hover-card .vc-desc { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.1) transparent; }
+      #visitor-hover-card .vc-desc::-webkit-scrollbar { width: 4px; }
+      #visitor-hover-card .vc-desc::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 2px; }
+    `;
+    document.head.appendChild(s);
+  }
+
+  document.body.appendChild(_visitorCard);
+}
+
+// Project all 8 corners of the artwork's AABB to find its true screen-space
+// bounding rect. Using box.max.x alone is wrong for side-wall paintings because
+// the painting's depth axis (Z or X in world space) becomes the screen-horizontal axis.
+function calcVisitorCardPos(group, camera) {
+  const box = new THREE.Box3().setFromObject(group);
+  const { min, max } = box;
+
+  let minSX = Infinity, maxSX = -Infinity;
+  let minSY = Infinity, maxSY = -Infinity;
+
+  for (let xi = 0; xi < 2; xi++) {
+    for (let yi = 0; yi < 2; yi++) {
+      for (let zi = 0; zi < 2; zi++) {
+        const p = new THREE.Vector3(
+          xi === 0 ? min.x : max.x,
+          yi === 0 ? min.y : max.y,
+          zi === 0 ? min.z : max.z,
+        ).project(camera);
+        const sx = (p.x * 0.5 + 0.5) * window.innerWidth;
+        const sy = (-p.y * 0.5 + 0.5) * window.innerHeight;
+        if (sx < minSX) minSX = sx;
+        if (sx > maxSX) maxSX = sx;
+        if (sy < minSY) minSY = sy;
+        if (sy > maxSY) maxSY = sy;
+      }
+    }
+  }
+
+  const cy  = (minSY + maxSY) / 2;
+  const GAP = 30;
+
+  if (maxSX + GAP + VC_WIDTH > window.innerWidth) {
+    return { x: minSX - GAP - VC_WIDTH, y: cy, side: 'left' };
+  }
+  return { x: maxSX + GAP, y: cy, side: 'right' };
+}
+
+function fillVisitorCard(group) {
+  _visitorCard.innerHTML = '';
+  const info = group.userData.info || {};
+
+  const title = document.createElement('div');
+  title.textContent = info.title || 'Untitled';
+  Object.assign(title.style, {
+    fontSize: '24px', fontWeight: 'normal',
+    color: info.title ? '#2a2218' : '#8a7a6a',
+    fontStyle: info.title ? 'normal' : 'italic',
+    marginBottom: '16px', lineHeight: '1.3',
+  });
+  _visitorCard.appendChild(title);
+
+  if (info.description) {
+    const maxLen = 150;
+    const text   = info.description.length > maxLen
+      ? info.description.slice(0, maxLen) + '…'
+      : info.description;
+    const desc = document.createElement('div');
+    desc.className = 'vc-desc';
+    desc.textContent = text;
+    Object.assign(desc.style, {
+      fontSize: '13px', lineHeight: '1.8',
+      color: '#3a3228', textIndent: '2em',
+      maxHeight: '200px', overflowY: 'auto',
+      marginBottom: '20px',
+    });
+    _visitorCard.appendChild(desc);
+  }
+
+  const metaRows = [
+    ['Artist', info.artist],
+    ['Year',   info.year],
+    ['Size',   info.dimensions],
+  ].filter(([, v]) => v);
+
+  if (metaRows.length) {
+    const meta = document.createElement('div');
+    Object.assign(meta.style, {
+      borderTop: '1px solid rgba(0,0,0,0.1)',
+      marginTop: '20px', paddingTop: '16px',
+      fontSize: '11px', lineHeight: '2.0', color: '#8a7a6a',
+    });
+    metaRows.forEach(([label, value]) => {
+      const row = document.createElement('div');
+      row.innerHTML = `<span style="opacity:0.55">${label}</span>&ensp;${value}`;
+      meta.appendChild(row);
+    });
+    _visitorCard.appendChild(meta);
+  }
+}
+
+function slideInVisitorCard(group, camera) {
+  if (!_visitorCard) buildVisitorCard();
+  fillVisitorCard(group);
+
+  const pos = calcVisitorCardPos(group, camera);
+  _visitorCard.dataset.side = pos.side;
+
+  // Park at calculated position with slide-in offset (toward artwork)
+  _visitorCard.style.left      = pos.x + 'px';
+  _visitorCard.style.top       = pos.y + 'px';
+  const offset = pos.side === 'right' ? '-10px' : '10px';
+  _visitorCard.style.transform = `translateY(-50%) translateX(${offset})`;
+  _visitorCard.style.opacity   = '0';
+  _visitorCard.style.pointerEvents = 'auto';
+
+  requestAnimationFrame(() => {
+    _visitorCard.style.transform = 'translateY(-50%) translateX(0)';
+    _visitorCard.style.opacity   = '1';
+  });
+}
+
+function updateVisitorCardPos(group, camera) {
+  if (!_visitorCard || _visitorCard.style.opacity === '0') return;
+  const pos = calcVisitorCardPos(group, camera);
+  // Update position without transition (left/top not in transition list)
+  _visitorCard.style.left = pos.x + 'px';
+  _visitorCard.style.top  = pos.y + 'px';
+}
+
+function slideOutVisitorCard() {
+  if (!_visitorCard) return;
+  const side   = _visitorCard.dataset.side || 'right';
+  const offset = side === 'right' ? '-10px' : '10px';
+  _visitorCard.style.transform = `translateY(-50%) translateX(${offset})`;
+  _visitorCard.style.opacity   = '0';
+  _visitorCard.style.pointerEvents = 'none';
+}
+
+export function resetHoverState() {
+  cancelHide();
+  if (_card) _card.style.opacity = '0';
+  slideOutVisitorCard();
+  _lastCardGroup = null;
+  _timedOutGroup = null;
+  _cardHovered   = false;
+  _vcHovered     = false;
+}
+
 function scheduleHide() {
   if (_hideTimeout) return;
   _hideTimeout = setTimeout(() => {
     _hideTimeout = null;
-    _card.style.opacity = '0';
+    if (_card) _card.style.opacity = '0';
+    slideOutVisitorCard();
     _lastCardGroup = null;
   }, HIDE_DELAY);
 }
@@ -307,17 +489,21 @@ export function initHoverPreview(canvas) {
   });
   canvas.addEventListener('mouseleave', () => {
     _mNDC.set(-9999, -9999);
-    if (!_cardHovered) scheduleHide();
+    if (!_cardHovered && !_vcHovered) scheduleHide();
   });
 }
 
 export function tickHoverPreview(camera, renderer, artworks, interacting) {
   if (!_card) return;
 
-  // While mouse is on the card: cancel any pending hide, still respect TTL
-  if (_cardHovered) {
+  const visitorMode = !isCurator();
+  const cardHov     = visitorMode ? _vcHovered : _cardHovered;
+
+  // Card/panel is being hovered
+  if (cardHov) {
     cancelHide();
-    if (_lastCardGroup && Date.now() - _cardShowTime > CARD_TTL_MS) {
+    // Curator: still respect TTL even while hovering
+    if (!visitorMode && _lastCardGroup && Date.now() - _cardShowTime > CARD_TTL_MS) {
       _card.style.opacity = '0';
       _timedOutGroup = _lastCardGroup;
       _lastCardGroup = null;
@@ -325,10 +511,11 @@ export function tickHoverPreview(camera, renderer, artworks, interacting) {
     return;
   }
 
-  // Immediate hide for editor/interaction states (these aren't a mouse-movement gap)
+  // Immediate hide for editor/interaction states
   if (isEditorOpen() || interacting || !artworks.length) {
     cancelHide();
     _card.style.opacity = '0';
+    slideOutVisitorCard();
     _lastCardGroup = null;
     _timedOutGroup = null;
     return;
@@ -338,7 +525,6 @@ export function tickHoverPreview(camera, renderer, artworks, interacting) {
   const hits = _rc.intersectObjects(artworks.flatMap(a => a.children), true);
 
   if (!hits.length || hits[0].object.userData.isRotHandle) {
-    // Mouse left artwork — delayed hide so user can reach the card
     scheduleHide();
     _timedOutGroup = null;
     return;
@@ -347,25 +533,28 @@ export function tickHoverPreview(camera, renderer, artworks, interacting) {
   const parent = artworks.find(a =>
     a.children.some(ch => ch === hits[0].object || ch === hits[0].object.parent)
   );
-  if (!parent) {
-    scheduleHide();
-    _timedOutGroup = null;
+  if (!parent) { scheduleHide(); _timedOutGroup = null; return; }
+
+  // ── Visitor mode: panel next to artwork, no TTL ──────────────────────────
+  if (visitorMode) {
+    cancelHide();
+    if (parent !== _lastCardGroup) {
+      slideInVisitorCard(parent, camera);
+      _lastCardGroup = parent;
+    } else {
+      updateVisitorCardPos(parent, camera); // track artwork as camera moves
+    }
     return;
   }
 
-  // Don't re-show a card that just timed out until mouse leaves and re-enters
-  if (parent === _timedOutGroup) {
-    _card.style.opacity = '0';
-    return;
-  }
+  // ── Curator mode: existing bottom card with TTL ───────────────────────────
+  if (parent === _timedOutGroup) { _card.style.opacity = '0'; return; }
 
-  // Rebuild DOM only when hovered group changes; reset timer
   if (parent !== _lastCardGroup) {
     fillCardContent(parent);
     _cardShowTime = Date.now();
   }
 
-  // Hide after TTL (immediate — deliberate timeout, not a mouse-movement gap)
   if (Date.now() - _cardShowTime > CARD_TTL_MS) {
     cancelHide();
     _card.style.opacity = '0';
@@ -374,7 +563,6 @@ export function tickHoverPreview(camera, renderer, artworks, interacting) {
     return;
   }
 
-  // Mouse is on artwork and TTL not expired — show card
   cancelHide();
 
   const worldPos = parent.position.clone();
