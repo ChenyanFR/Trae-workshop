@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { openInfoEditor, isEditorOpen } from './artworkInfo.js';
 import { isCurator, onModeChange } from './userMode.js';
+import { openFocus, closeFocus, isFocusOpen } from './focusMode.js';
 
 // ─── Frame presets ────────────────────────────────────────────────────────────
 const FRAME_PRESETS = [
@@ -963,6 +964,7 @@ function onWheel(e) {
 }
 
 function onKeyDown(e) {
+  if (isFocusOpen()) return; // focus mode handles ESC via capture listener
   if (isEditorOpen()) return;
   if (e.key === 'Escape') {
     removeCtxMenu();
@@ -972,6 +974,31 @@ function onKeyDown(e) {
     return;
   }
   if (e.key === 'Delete') deleteSelected();
+}
+
+// ─── Focus mode triggers ──────────────────────────────────────────────────────
+function hitArtwork(e) {
+  getNDC(e);
+  raycaster.setFromCamera(mouse, _camera);
+  const hits = raycaster.intersectObjects(artworks.flatMap(a => a.children), true);
+  if (!hits.length) return null;
+  return artworks.find(a =>
+    a.children.some(ch => ch === hits[0].object || ch === hits[0].object.parent)
+  ) ?? null;
+}
+
+function onCanvasClick(e) {
+  if (isCurator()) return;    // visitor only — curator uses dblclick
+  if (isFocusOpen()) return;
+  const parent = hitArtwork(e);
+  if (parent) openFocus(parent);
+}
+
+function onCanvasDblClick(e) {
+  if (!isCurator()) return;
+  if (isEditorOpen() || hangingMode || editMode) return;
+  const parent = hitArtwork(e);
+  if (parent) openFocus(parent);
 }
 
 // ─── Context menu ─────────────────────────────────────────────────────────────
@@ -1061,7 +1088,7 @@ export function tickVideoArtworks(camera) {
 }
 
 export function getArtworks()   { return artworks; }
-export function isInteracting() { return hangingMode || isDragging || isRotating || _resizeDragActive; }
+export function isInteracting() { return hangingMode || isDragging || isRotating || _resizeDragActive || isFocusOpen(); }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 export function createArtworks(scene, camera, renderer, controls) {
@@ -1069,6 +1096,7 @@ export function createArtworks(scene, camera, renderer, controls) {
   buildUploadBtn(); buildHUD(); buildFramePanel(); buildSelectionBar(); buildEditModeBar(); buildCornerHandles();
 
   onModeChange(() => {
+    if (isFocusOpen()) closeFocus();
     if (editMode) exitEditMode();
     if (hangingMode) exitHangingMode();
     removeCtxMenu();
@@ -1081,5 +1109,7 @@ export function createArtworks(scene, camera, renderer, controls) {
   cv.addEventListener('mouseup',      onMouseUp);
   cv.addEventListener('wheel',        onWheel, { passive: false });
   cv.addEventListener('contextmenu',  onContextMenu);
+  cv.addEventListener('click',        onCanvasClick);
+  cv.addEventListener('dblclick',     onCanvasDblClick);
   window.addEventListener('keydown', onKeyDown);
 }
