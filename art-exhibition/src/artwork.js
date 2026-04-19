@@ -758,6 +758,7 @@ function onWheel(e) {
 }
 
 function onKeyDown(e) {
+  if (isEditorOpen()) return;
   if (e.key === 'Escape') {
     removeCtxMenu();
     if (hangingMode) exitHangingMode();

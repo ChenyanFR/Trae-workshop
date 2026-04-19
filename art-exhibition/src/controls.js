@@ -8,6 +8,9 @@ const EYE_Y = 1.7;
 
 export function setBounds(x, z) { BOUND_X = x; BOUND_Z = z; }
 
+let _enabled = true;
+export function setControlsEnabled(v) { _enabled = v; }
+
 const MOVE_SPEED = 4.0;   // metres per second
 
 export function initControls(camera, renderer) {
@@ -31,10 +34,15 @@ export function initControls(camera, renderer) {
   const keys = { w: false, a: false, s: false, d: false, q: false, e: false };
 
   window.addEventListener('keydown', (e) => {
+    if (!_enabled) return;
+    const t = e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA') return;
     const k = e.key.toLowerCase();
     if (k in keys) { keys[k] = true; e.preventDefault(); }
   });
   window.addEventListener('keyup', (e) => {
+    const t = e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA') return;
     const k = e.key.toLowerCase();
     if (k in keys) keys[k] = false;
   });
@@ -52,7 +60,7 @@ export function initControls(camera, renderer) {
     const dt  = Math.min((now - lastTime) / 1000, 0.05); // seconds, capped
     lastTime  = now;
 
-    const moving = keys.w || keys.a || keys.s || keys.d || keys.q || keys.e;
+    const moving = _enabled && (keys.w || keys.a || keys.s || keys.d || keys.q || keys.e);
     if (moving) {
       // Horizontal forward = direction camera is looking, projected onto XZ plane
       camera.getWorldDirection(forward);

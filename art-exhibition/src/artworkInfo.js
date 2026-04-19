@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { setControlsEnabled } from './controls.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Feature A — Info Editor Modal
@@ -131,6 +132,7 @@ function commitSave() {
 
 function closeEditor() {
   if (_modal) _modal.style.display = 'none';
+  setControlsEnabled(true);
   const closed = _currentGroup;
   _currentGroup = null;
   // Refresh card if this group is currently shown
@@ -140,6 +142,7 @@ function closeEditor() {
 export function openInfoEditor(group) {
   _currentGroup = group;
   if (!_modal) buildModal();
+  setControlsEnabled(false);
   const info = group.userData.info || {};
   for (const key of Object.keys(_fields)) _fields[key].value = info[key] ?? '';
   if (!group.userData.info?.id) {
