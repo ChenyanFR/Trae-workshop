@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { setControlsEnabled } from './controls.js';
+import { isCurator } from './userMode.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Feature A — Info Editor Modal
@@ -140,6 +141,7 @@ function closeEditor() {
 }
 
 export function openInfoEditor(group) {
+  if (!isCurator()) return;
   _currentGroup = group;
   if (!_modal) buildModal();
   setControlsEnabled(false);
@@ -235,15 +237,17 @@ function fillCardContent(group) {
     ph.textContent = 'No description';
     Object.assign(ph.style, {
       fontSize: '12px', opacity: '0.45',
-      fontStyle: 'italic', marginBottom: '10px',
+      fontStyle: 'italic', marginBottom: isCurator() ? '10px' : '0',
     });
     _card.appendChild(ph);
 
-    const btn = document.createElement('button');
-    btn.textContent = '+ Add Description';
-    styleActionBtn(btn);
-    btn.addEventListener('click', () => openInfoEditor(group));
-    _card.appendChild(btn);
+    if (isCurator()) {
+      const btn = document.createElement('button');
+      btn.textContent = '+ Add Description';
+      styleActionBtn(btn);
+      btn.addEventListener('click', () => openInfoEditor(group));
+      _card.appendChild(btn);
+    }
   } else {
     const row = document.createElement('div');
     Object.assign(row.style, {
@@ -272,22 +276,24 @@ function fillCardContent(group) {
       textCol.appendChild(y);
     }
 
-    const editBtn = document.createElement('button');
-    editBtn.textContent = '✎';
-    editBtn.title = 'Edit description';
-    Object.assign(editBtn.style, {
-      background: 'transparent', border: 'none',
-      color: 'rgba(255,255,255,0.38)', cursor: 'pointer',
-      fontSize: '15px', lineHeight: '1', padding: '2px 4px',
-      flexShrink: '0', transition: 'color 0.15s',
-      fontFamily: 'Georgia, serif',
-    });
-    editBtn.addEventListener('mouseenter', () => editBtn.style.color = 'rgba(255,255,255,0.9)');
-    editBtn.addEventListener('mouseleave', () => editBtn.style.color = 'rgba(255,255,255,0.38)');
-    editBtn.addEventListener('click', () => openInfoEditor(group));
-
     row.appendChild(textCol);
-    row.appendChild(editBtn);
+
+    if (isCurator()) {
+      const editBtn = document.createElement('button');
+      editBtn.textContent = '✎';
+      editBtn.title = 'Edit description';
+      Object.assign(editBtn.style, {
+        background: 'transparent', border: 'none',
+        color: 'rgba(255,255,255,0.38)', cursor: 'pointer',
+        fontSize: '15px', lineHeight: '1', padding: '2px 4px',
+        flexShrink: '0', transition: 'color 0.15s',
+        fontFamily: 'Georgia, serif',
+      });
+      editBtn.addEventListener('mouseenter', () => editBtn.style.color = 'rgba(255,255,255,0.9)');
+      editBtn.addEventListener('mouseleave', () => editBtn.style.color = 'rgba(255,255,255,0.38)');
+      editBtn.addEventListener('click', () => openInfoEditor(group));
+      row.appendChild(editBtn);
+    }
     _card.appendChild(row);
   }
 }

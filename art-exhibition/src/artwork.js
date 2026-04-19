@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { openInfoEditor, isEditorOpen } from './artworkInfo.js';
+import { isCurator, onModeChange } from './userMode.js';
 
 // ─── Frame presets ────────────────────────────────────────────────────────────
 const FRAME_PRESETS = [
@@ -50,8 +51,8 @@ const FRAME_THICKNESS = 0.06;
 const FRAME_DEPTH     = 0.05;
 const CANVAS_DEPTH    = 0.01;
 const WALL_OFFSET     = 0.005; // 紧贴墙面，避免悬浮或插入墙里
-const MIN_SIZE        = 0.01;
-const MAX_SIZE        = 50;
+const MIN_SIZE        = 0.001;
+const MAX_SIZE        = 1000;
 const SIZE_STEP       = 0.08;
 
 const WALLS = [
@@ -209,8 +210,8 @@ let _resizeStartSize   = 0;
 let _resizeStartDist   = 1;
 let _resizeStartCX     = 0; // artwork center in screen pixels at drag start
 let _resizeStartCY     = 0;
-const EDIT_MIN_SIZE    = 0.3;
-const EDIT_MAX_SIZE    = 3.0;
+const EDIT_MIN_SIZE    = 0.001;
+const EDIT_MAX_SIZE    = 1000;
 const _cornerHandles   = [];
 
 // ─── UI refs ──────────────────────────────────────────────────────────────────
@@ -523,6 +524,7 @@ export function tickEditMode() {
 }
 
 function enterEditMode(group) {
+  if (!isCurator()) return;
   editMode = true;
   selectArtwork(group);
   showCornerHandles(group);
@@ -862,6 +864,7 @@ function onMouseMove(e) {
 function onMouseDown(e) {
   if (e.button !== 0) return;
   if (isEditorOpen()) return;
+  if (!isCurator()) return;
   removeCtxMenu();
   getNDC(e);
   raycaster.setFromCamera(mouse, _camera);
@@ -1025,7 +1028,7 @@ function showContextMenu(x, y, group) {
 
 function onContextMenu(e) {
   e.preventDefault();
-  if (hangingMode || isEditorOpen()) return;
+  if (hangingMode || isEditorOpen() || !isCurator()) return;
   getNDC(e);
   raycaster.setFromCamera(mouse, _camera);
   const hits = raycaster.intersectObjects(artworks.flatMap(a => a.children), true);
@@ -1064,6 +1067,14 @@ export function isInteracting() { return hangingMode || isDragging || isRotating
 export function createArtworks(scene, camera, renderer, controls) {
   _scene = scene; _camera = camera; _renderer = renderer; _controls = controls;
   buildUploadBtn(); buildHUD(); buildFramePanel(); buildSelectionBar(); buildEditModeBar(); buildCornerHandles();
+
+  onModeChange(() => {
+    if (editMode) exitEditMode();
+    if (hangingMode) exitHangingMode();
+    removeCtxMenu();
+    deselectAll();
+    uploadBtn.style.display = isCurator() ? '' : 'none';
+  });
   const cv = renderer.domElement;
   cv.addEventListener('mousemove',    onMouseMove);
   cv.addEventListener('mousedown',    onMouseDown);

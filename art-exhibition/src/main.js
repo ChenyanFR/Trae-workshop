@@ -12,6 +12,7 @@ import { createInstallations } from './installation.js';
 import { initControls }    from './controls.js';
 import { initUI }          from './ui.js';
 import { setFloorMesh, initFloorUI } from './floor.js';
+import { initModeUI } from './userMode.js';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -198,6 +199,7 @@ loader.load(
     createInstallations(scene, camera, renderer, controls);
     initUI();
     initFloorUI();
+    initModeUI();
 
     hideLoadingScreen();
   },
