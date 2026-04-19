@@ -6,7 +6,7 @@ import { setWallMaterialMap } from './room.js';
 import { setWallMesh, addRaycastTarget, setHangingSlots } from './artwork.js';
 import { setBounds }       from './controls.js';
 import { createLighting }  from './lighting.js';
-import { createArtworks, tickVideoArtworks, getArtworks, isInteracting } from './artwork.js';
+import { createArtworks, tickVideoArtworks, getArtworks, isInteracting, tickEditMode } from './artwork.js';
 import { initHoverPreview, tickHoverPreview } from './artworkInfo.js';
 import { createInstallations } from './installation.js';
 import { initControls }    from './controls.js';
@@ -51,6 +51,7 @@ function animate() {
   controls.tick();
   tickVideoArtworks(camera);
   tickHoverPreview(camera, renderer, getArtworks(), isInteracting());
+  tickEditMode();
   renderer.render(scene, camera);
 }
 animate();

@@ -201,13 +201,26 @@ let isRotating      = false;
 let prevRotAngle    = 0;
 let presetIdx       = 0;
 let changingFrameFor = null; // group whose frame we're changing, or null = new painting
+let editMode        = false;
+
+// ─── Corner resize drag state ─────────────────────────────────────────────────
+let _resizeDragActive  = false;
+let _resizeStartSize   = 0;
+let _resizeStartDist   = 1;
+let _resizeStartCX     = 0; // artwork center in screen pixels at drag start
+let _resizeStartCY     = 0;
+const EDIT_MIN_SIZE    = 0.3;
+const EDIT_MAX_SIZE    = 3.0;
+const _cornerHandles   = [];
+
+// ─── UI refs ──────────────────────────────────────────────────────────────────
+let editModeBar;
 
 const raycaster = new THREE.Raycaster();
 const mouse     = new THREE.Vector2();
 const _plane    = new THREE.Plane();
 const _hitPt    = new THREE.Vector3();
 
-// ─── UI refs ──────────────────────────────────────────────────────────────────
 let uploadBtn, crosshair, hintBar, framePanel, selectionBar;
 
 // ─── Highlight ────────────────────────────────────────────────────────────────
@@ -220,6 +233,7 @@ function highlight(group, on) {
 
 // ─── Selection ────────────────────────────────────────────────────────────────
 function selectArtwork(group) {
+  if (editMode && selectedGroup && selectedGroup !== group) exitEditMode();
   if (selectedGroup && selectedGroup !== group) {
     highlight(selectedGroup, false);
     removeRotHandle(selectedGroup);
@@ -231,6 +245,7 @@ function selectArtwork(group) {
 }
 
 function deselectAll() {
+  exitEditMode();
   if (selectedGroup) {
     highlight(selectedGroup, false);
     removeRotHandle(selectedGroup);
@@ -325,12 +340,202 @@ function buildSelectionBar() {
 }
 
 function updateSelectionBar() {
-  if (!selectedGroup || !selectionBar) return;
+  if (!selectedGroup || !selectionBar || editMode) return;
   const preset = FRAME_PRESETS[selectedGroup.userData.presetIdx % FRAME_PRESETS.length];
   const w = (selectedGroup.userData.artWidth  ?? 0).toFixed(2);
   const h = (selectedGroup.userData.artHeight ?? 0).toFixed(2);
   selectionBar.querySelector('#sel-label').textContent = `${preset.name}  ${w}×${h} m`;
   selectionBar.style.display = 'flex';
+}
+
+// ─── Edit mode bar ────────────────────────────────────────────────────────────
+function buildEditModeBar() {
+  editModeBar = document.createElement('div');
+  Object.assign(editModeBar.style, {
+    position: 'fixed', bottom: '20px', left: '50%',
+    transform: 'translateX(-50%)',
+    background: 'rgba(8,18,12,0.92)', border: '1px solid #3a6a48',
+    borderRadius: '8px', padding: '10px 18px',
+    color: '#b0e8c8', fontFamily: 'serif', fontSize: '13px',
+    display: 'none', zIndex: 200, gap: '12px',
+    alignItems: 'center', backdropFilter: 'blur(6px)',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.55)', whiteSpace: 'nowrap',
+  });
+
+  const hint = document.createElement('span');
+  hint.textContent = 'Edit Mode  ·  Drag corner to resize  ·  Drag artwork to move';
+  hint.style.cssText = 'opacity:0.72;font-size:12px';
+  editModeBar.appendChild(hint);
+
+  const sep = document.createElement('span');
+  sep.textContent = '|'; sep.style.cssText = 'opacity:0.22';
+  editModeBar.appendChild(sep);
+
+  const doneBtn = document.createElement('button');
+  doneBtn.textContent = 'Done';
+  Object.assign(doneBtn.style, {
+    background: 'rgba(50,180,100,0.18)', border: '1px solid #3a6a48',
+    color: '#b0e8c8', borderRadius: '4px', padding: '4px 14px',
+    cursor: 'pointer', fontSize: '13px', fontFamily: 'serif',
+  });
+  doneBtn.addEventListener('mouseenter', () => doneBtn.style.background = 'rgba(50,180,100,0.32)');
+  doneBtn.addEventListener('mouseleave', () => doneBtn.style.background = 'rgba(50,180,100,0.18)');
+  doneBtn.addEventListener('click', exitEditMode);
+  editModeBar.appendChild(doneBtn);
+
+  const esc = document.createElement('span');
+  esc.textContent = 'ESC to exit';
+  esc.style.cssText = 'opacity:0.28;font-size:11px';
+  editModeBar.appendChild(esc);
+
+  document.body.appendChild(editModeBar);
+}
+
+// ─── Corner resize handles ────────────────────────────────────────────────────
+// Corner order: 0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right
+const CORNER_CURSORS = ['nwse-resize', 'nesw-resize', 'nesw-resize', 'nwse-resize'];
+
+function buildCornerHandles() {
+  for (let i = 0; i < 4; i++) {
+    const h = document.createElement('div');
+    Object.assign(h.style, {
+      position: 'fixed', width: '10px', height: '10px',
+      background: '#fff', border: '1.5px solid #222',
+      borderRadius: '2px', boxSizing: 'border-box',
+      transform: 'translate(-50%,-50%)',
+      cursor: CORNER_CURSORS[i],
+      zIndex: 250, display: 'none',
+      transition: 'background 0.12s, transform 0.12s',
+      pointerEvents: 'auto',
+    });
+    h.addEventListener('mouseenter', () => {
+      h.style.background = '#c8903a';
+      h.style.transform = 'translate(-50%,-50%) scale(1.45)';
+    });
+    h.addEventListener('mouseleave', () => {
+      h.style.background = '#fff';
+      h.style.transform = 'translate(-50%,-50%)';
+    });
+    h.addEventListener('mousedown', e => onCornerMouseDown(e, i));
+    document.body.appendChild(h);
+    _cornerHandles.push(h);
+  }
+}
+
+function getArtworkCornersScreen(group) {
+  const el = _renderer.domElement;
+  const w  = group.userData.artWidth  ?? 0.5;
+  const h  = group.userData.artHeight ?? 0.5;
+  const ft = FRAME_THICKNESS;
+  const localPts = [
+    new THREE.Vector3(-w / 2 - ft,  h / 2 + ft, 0), // 0 top-left
+    new THREE.Vector3( w / 2 + ft,  h / 2 + ft, 0), // 1 top-right
+    new THREE.Vector3(-w / 2 - ft, -h / 2 - ft, 0), // 2 bottom-left
+    new THREE.Vector3( w / 2 + ft, -h / 2 - ft, 0), // 3 bottom-right
+  ];
+  return localPts.map(lp => {
+    const wp = group.localToWorld(lp.clone());
+    const v  = wp.project(_camera);
+    return {
+      x: (v.x + 1) / 2 * el.clientWidth,
+      y: (1 - v.y) / 2 * el.clientHeight,
+    };
+  });
+}
+
+function showCornerHandles(group) {
+  _cornerHandles.forEach(h => h.style.display = 'block');
+}
+
+function hideCornerHandles() {
+  _cornerHandles.forEach(h => h.style.display = 'none');
+}
+
+function onCornerMouseDown(e, cornerIndex) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (!editMode || !selectedGroup) return;
+
+  _resizeDragActive = true;
+  _resizeStartSize  = selectedGroup.userData.artSize
+    ?? Math.max(selectedGroup.userData.artWidth, selectedGroup.userData.artHeight);
+
+  // Compute artwork screen center
+  const el = _renderer.domElement;
+  const cv  = selectedGroup.position.clone().project(_camera);
+  _resizeStartCX = (cv.x + 1) / 2 * el.clientWidth;
+  _resizeStartCY = (1 - cv.y) / 2 * el.clientHeight;
+
+  // Distance from center to dragged corner
+  const corners  = getArtworkCornersScreen(selectedGroup);
+  _resizeStartDist = Math.max(
+    Math.hypot(corners[cornerIndex].x - _resizeStartCX,
+               corners[cornerIndex].y - _resizeStartCY),
+    1
+  );
+
+  if (_controls) _controls.enabled = false;
+  document.addEventListener('mousemove', onResizeDragMove);
+  document.addEventListener('mouseup',   onResizeDragEnd);
+}
+
+function onResizeDragMove(e) {
+  if (!_resizeDragActive || !selectedGroup) return;
+  const dist   = Math.hypot(e.clientX - _resizeStartCX, e.clientY - _resizeStartCY);
+  const factor = dist / _resizeStartDist;
+  const newSize = THREE.MathUtils.clamp(_resizeStartSize * factor, EDIT_MIN_SIZE, EDIT_MAX_SIZE);
+  selectedGroup.scale.setScalar(newSize / _resizeStartSize);
+}
+
+function onResizeDragEnd() {
+  if (!_resizeDragActive) return;
+  _resizeDragActive = false;
+  document.removeEventListener('mousemove', onResizeDragMove);
+  document.removeEventListener('mouseup',   onResizeDragEnd);
+  if (_controls) _controls.enabled = true;
+  if (!selectedGroup) return;
+
+  const factor  = selectedGroup.scale.x;
+  const newSize = THREE.MathUtils.clamp(_resizeStartSize * factor, EDIT_MIN_SIZE, EDIT_MAX_SIZE);
+  selectedGroup.scale.set(1, 1, 1); // reset before rebuilding
+
+  const old = selectedGroup;
+  const ng  = resizePainting(old, newSize); // removes old from scene, adds ng
+  artworks  = artworks.map(a => a === old ? ng : a);
+
+  // Manually update selection — stay in edit mode, skip selectArtwork to avoid exitEditMode
+  selectedGroup = ng;
+  highlight(ng, true);
+  addRotHandle(ng);
+  if (selectionBar)  selectionBar.style.display  = 'none';
+  if (editModeBar)   editModeBar.style.display    = 'flex';
+}
+
+export function tickEditMode() {
+  if (!editMode || !selectedGroup || !_cornerHandles.length) return;
+  // Update matrixWorld so localToWorld is accurate
+  selectedGroup.updateWorldMatrix(true, false);
+  const positions = getArtworkCornersScreen(selectedGroup);
+  positions.forEach((pos, i) => {
+    _cornerHandles[i].style.left = pos.x + 'px';
+    _cornerHandles[i].style.top  = pos.y + 'px';
+  });
+}
+
+function enterEditMode(group) {
+  editMode = true;
+  selectArtwork(group);
+  showCornerHandles(group);
+  if (selectionBar) selectionBar.style.display = 'none';
+  if (editModeBar)  editModeBar.style.display  = 'flex';
+}
+
+function exitEditMode() {
+  if (!editMode) return;
+  editMode = false;
+  hideCornerHandles();
+  if (editModeBar) editModeBar.style.display = 'none';
+  updateSelectionBar();
 }
 
 // ─── Frame selector panel ─────────────────────────────────────────────────────
@@ -751,18 +956,16 @@ function onWheel(e) {
     _scene.add(placingGroup);
     return;
   }
-  if (!hangingMode && selectedGroup) {
-    e.preventDefault();
-    adjustSelectedSize(e.deltaY > 0 ? -SIZE_STEP : SIZE_STEP);
-  }
+  // Placed paintings are resized by corner handles in edit mode, not scroll
 }
 
 function onKeyDown(e) {
   if (isEditorOpen()) return;
   if (e.key === 'Escape') {
     removeCtxMenu();
-    if (hangingMode) exitHangingMode();
-    else deselectAll();
+    if (editMode)    { exitEditMode(); return; }
+    if (hangingMode) { exitHangingMode(); return; }
+    deselectAll();
     return;
   }
   if (e.key === 'Delete') deleteSelected();
@@ -798,6 +1001,7 @@ function showContextMenu(x, y, group) {
   };
 
   mkItem('Edit Info', () => openInfoEditor(group));
+  mkItem('Resize / Move', () => enterEditMode(group));
 
   const sep = document.createElement('div');
   sep.style.cssText = 'height:1px;background:rgba(90,50,10,0.6);margin:2px 0';
@@ -854,12 +1058,12 @@ export function tickVideoArtworks(camera) {
 }
 
 export function getArtworks()   { return artworks; }
-export function isInteracting() { return hangingMode || isDragging || isRotating; }
+export function isInteracting() { return hangingMode || isDragging || isRotating || _resizeDragActive; }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 export function createArtworks(scene, camera, renderer, controls) {
   _scene = scene; _camera = camera; _renderer = renderer; _controls = controls;
-  buildUploadBtn(); buildHUD(); buildFramePanel(); buildSelectionBar();
+  buildUploadBtn(); buildHUD(); buildFramePanel(); buildSelectionBar(); buildEditModeBar(); buildCornerHandles();
   const cv = renderer.domElement;
   cv.addEventListener('mousemove',    onMouseMove);
   cv.addEventListener('mousedown',    onMouseDown);
