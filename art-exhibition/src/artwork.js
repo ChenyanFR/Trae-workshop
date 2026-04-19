@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { openInfoEditor, isEditorOpen } from './artworkInfo.js';
 import { isCurator, onModeChange } from './userMode.js';
-import { openFocus, closeFocus, isFocusOpen } from './focusMode.js';
+import { openFocus, closeFocus, isFocusOpen, onFocusSwipeRight } from './focusMode.js';
+import { openDetail, isDetailOpen } from './artworkDetail.js';
 
 // ─── Frame presets ────────────────────────────────────────────────────────────
 const FRAME_PRESETS = [
@@ -1088,12 +1089,17 @@ export function tickVideoArtworks(camera) {
 }
 
 export function getArtworks()   { return artworks; }
-export function isInteracting() { return hangingMode || isDragging || isRotating || _resizeDragActive || isFocusOpen(); }
+export function isInteracting() { return hangingMode || isDragging || isRotating || _resizeDragActive || isFocusOpen() || isDetailOpen(); }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 export function createArtworks(scene, camera, renderer, controls) {
   _scene = scene; _camera = camera; _renderer = renderer; _controls = controls;
   buildUploadBtn(); buildHUD(); buildFramePanel(); buildSelectionBar(); buildEditModeBar(); buildCornerHandles();
+
+  onFocusSwipeRight(group => {
+    closeFocus(false); // keep controls locked — detail takes over
+    openDetail(group, g => openFocus(g));
+  });
 
   onModeChange(() => {
     if (isFocusOpen()) closeFocus();

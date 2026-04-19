@@ -1,14 +1,16 @@
 import { setControlsEnabled } from './controls.js';
 
-let _overlay  = null;
-let _isOpen   = false;
-let _swipeCb  = null;
+let _overlay      = null;
+let _isOpen       = false;
+let _swipeCb      = null;
+let _currentGroup = null;
 
 export function isFocusOpen()          { return _isOpen; }
 export function onFocusSwipeRight(fn)  { _swipeCb = fn; }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 export function openFocus(group) {
+  _currentGroup = group;
   if (!_overlay) buildOverlay();
   populateOverlay(group);
   _isOpen = true;
@@ -17,7 +19,8 @@ export function openFocus(group) {
   requestAnimationFrame(() => { _overlay.style.opacity = '1'; });
 }
 
-export function closeFocus() {
+// restoreControls=false when handing off to detail page so controls stay locked
+export function closeFocus(restoreControls = true) {
   if (!_isOpen) return;
   _isOpen = false;
   _overlay.style.opacity = '0';
@@ -25,7 +28,7 @@ export function closeFocus() {
     if (_isOpen) return; // re-opened before timeout
     _overlay.style.display = 'none';
     _overlay.innerHTML = '';
-    setControlsEnabled(true);
+    if (restoreControls) setControlsEnabled(true);
   }, 300);
 }
 
@@ -46,8 +49,8 @@ function buildOverlay() {
   // ESC captured before artwork.js's window keydown
   document.addEventListener('keydown', e => {
     if (!_isOpen) return;
-    if (e.key === 'Escape')     { closeFocus();   e.stopImmediatePropagation(); }
-    if (e.key === 'ArrowRight') { _swipeCb?.();   e.stopImmediatePropagation(); }
+    if (e.key === 'Escape')     { closeFocus();                        e.stopImmediatePropagation(); }
+    if (e.key === 'ArrowRight') { _swipeCb?.(_currentGroup);           e.stopImmediatePropagation(); }
   }, true);
 
   document.body.appendChild(_overlay);
@@ -135,7 +138,7 @@ function populateOverlay(group) {
   let _swipeX = null;
   wrap.addEventListener('mousedown', e => { _swipeX = e.clientX; });
   wrap.addEventListener('mouseup', e => {
-    if (_swipeX !== null && e.clientX - _swipeX > 100) _swipeCb?.();
+    if (_swipeX !== null && e.clientX - _swipeX > 100) _swipeCb?.(_currentGroup);
     _swipeX = null;
   });
 
