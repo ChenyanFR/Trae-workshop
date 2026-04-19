@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { openInfoEditor, isEditorOpen } from './artworkInfo.js';
 
 // ─── Frame presets ────────────────────────────────────────────────────────────
 const FRAME_PRESETS = [
@@ -131,6 +132,7 @@ function resizePainting(group, newSize) {
   ng.userData.wallPoint  = group.userData.wallPoint?.clone();
   ng.userData.wallRotY   = group.userData.wallRotY;
   ng.userData.artSize    = newSize;
+  ng.userData.info       = group.userData.info;
   _scene.add(ng);
   return ng;
 }
@@ -524,7 +526,7 @@ function onFilesSelected(e) {
 function enterHangingMode() {
   hangingMode = true; deselectAll(); spawnNextPainting();
   crosshair.style.display = 'block'; hintBar.style.display = 'block';
-  hintBar.textContent = '移动鼠标到墙面 | 点击放置 | 滚轮缩放 | ESC退出';
+  hintBar.textContent = 'Move to wall  ·  Click to place  ·  Scroll to resize  ·  ESC to exit';
   _controls.enabled = false;
 }
 
@@ -654,6 +656,8 @@ function onMouseMove(e) {
 
 function onMouseDown(e) {
   if (e.button !== 0) return;
+  if (isEditorOpen()) return;
+  removeCtxMenu();
   getNDC(e);
   raycaster.setFromCamera(mouse, _camera);
 
@@ -671,11 +675,12 @@ function onMouseDown(e) {
       const hit = castOnWalls();
       if (hit) {
         snapToWall(placingGroup, hit.point, hit.wall);
-        artworks.push(placingGroup);
+        const placed = placingGroup;
+        artworks.push(placed);
         // Start video playing immediately — this click IS the user gesture,
         // so play() will succeed even for muted autoplay
-        if (placingGroup.userData.videoEl) {
-          placingGroup.userData.videoEl.play().catch(() => {});
+        if (placed.userData.videoEl) {
+          placed.userData.videoEl.play().catch(() => {});
         }
         placingGroup = null;
         spawnNextPainting();
@@ -754,11 +759,77 @@ function onWheel(e) {
 
 function onKeyDown(e) {
   if (e.key === 'Escape') {
+    removeCtxMenu();
     if (hangingMode) exitHangingMode();
     else deselectAll();
     return;
   }
   if (e.key === 'Delete') deleteSelected();
+}
+
+// ─── Context menu ─────────────────────────────────────────────────────────────
+let _ctxMenu = null;
+
+function removeCtxMenu() {
+  if (_ctxMenu) { _ctxMenu.remove(); _ctxMenu = null; }
+}
+
+function showContextMenu(x, y, group) {
+  removeCtxMenu();
+  const menu = document.createElement('div');
+  Object.assign(menu.style, {
+    position: 'fixed', left: x + 'px', top: y + 'px',
+    background: 'rgba(12,7,3,0.93)', border: '1px solid #5a3a10',
+    borderRadius: '6px', overflow: 'hidden', zIndex: 400,
+    boxShadow: '0 8px 28px rgba(0,0,0,0.65)',
+    fontFamily: 'serif', fontSize: '13px', color: '#f0e0c0',
+    backdropFilter: 'blur(8px)', minWidth: '140px',
+  });
+
+  const mkItem = (text, fn) => {
+    const item = document.createElement('div');
+    item.textContent = text;
+    Object.assign(item.style, { padding: '9px 16px', cursor: 'pointer' });
+    item.addEventListener('mouseenter', () => item.style.background = 'rgba(200,144,58,0.25)');
+    item.addEventListener('mouseleave', () => item.style.background = '');
+    item.addEventListener('click', () => { removeCtxMenu(); fn(); });
+    menu.appendChild(item);
+  };
+
+  mkItem('Edit Info', () => openInfoEditor(group));
+
+  const sep = document.createElement('div');
+  sep.style.cssText = 'height:1px;background:rgba(90,50,10,0.6);margin:2px 0';
+  menu.appendChild(sep);
+
+  mkItem('Delete Artwork', () => {
+    if (selectedGroup !== group) selectArtwork(group);
+    deleteSelected();
+  });
+
+  document.body.appendChild(menu);
+  _ctxMenu = menu;
+
+  // Dismiss when clicking outside
+  const dismiss = e => {
+    if (!menu.contains(e.target)) removeCtxMenu();
+    document.removeEventListener('mousedown', dismiss, true);
+  };
+  setTimeout(() => document.addEventListener('mousedown', dismiss, true), 0);
+}
+
+function onContextMenu(e) {
+  e.preventDefault();
+  if (hangingMode || isEditorOpen()) return;
+  getNDC(e);
+  raycaster.setFromCamera(mouse, _camera);
+  const hits = raycaster.intersectObjects(artworks.flatMap(a => a.children), true);
+  if (!hits.length) return;
+  const parent = artworks.find(a =>
+    a.children.some(ch => ch === hits[0].object || ch === hits[0].object.parent)
+  );
+  if (!parent) return;
+  showContextMenu(e.clientX, e.clientY, parent);
 }
 
 // ─── Proximity-based video playback ───────────────────────────────────────────
@@ -781,14 +852,18 @@ export function tickVideoArtworks(camera) {
   }
 }
 
+export function getArtworks()   { return artworks; }
+export function isInteracting() { return hangingMode || isDragging || isRotating; }
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 export function createArtworks(scene, camera, renderer, controls) {
   _scene = scene; _camera = camera; _renderer = renderer; _controls = controls;
   buildUploadBtn(); buildHUD(); buildFramePanel(); buildSelectionBar();
   const cv = renderer.domElement;
-  cv.addEventListener('mousemove', onMouseMove);
-  cv.addEventListener('mousedown', onMouseDown);
-  cv.addEventListener('mouseup',   onMouseUp);
-  cv.addEventListener('wheel',     onWheel, { passive: false });
+  cv.addEventListener('mousemove',    onMouseMove);
+  cv.addEventListener('mousedown',    onMouseDown);
+  cv.addEventListener('mouseup',      onMouseUp);
+  cv.addEventListener('wheel',        onWheel, { passive: false });
+  cv.addEventListener('contextmenu',  onContextMenu);
   window.addEventListener('keydown', onKeyDown);
 }

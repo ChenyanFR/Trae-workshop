@@ -6,7 +6,8 @@ import { setWallMaterialMap } from './room.js';
 import { setWallMesh, addRaycastTarget, setHangingSlots } from './artwork.js';
 import { setBounds }       from './controls.js';
 import { createLighting }  from './lighting.js';
-import { createArtworks, tickVideoArtworks } from './artwork.js';
+import { createArtworks, tickVideoArtworks, getArtworks, isInteracting } from './artwork.js';
+import { initHoverPreview, tickHoverPreview } from './artworkInfo.js';
 import { createInstallations } from './installation.js';
 import { initControls }    from './controls.js';
 import { initUI }          from './ui.js';
@@ -49,6 +50,7 @@ function animate() {
   requestAnimationFrame(animate);
   controls.tick();
   tickVideoArtworks(camera);
+  tickHoverPreview(camera, renderer, getArtworks(), isInteracting());
   renderer.render(scene, camera);
 }
 animate();
@@ -191,6 +193,7 @@ loader.load(
     // ── Initialise interactive systems ────────────────────────────────────────
     // createLighting(scene); // disabled: old room coords don't match new GLB
     createArtworks(scene, camera, renderer, controls);
+    initHoverPreview(renderer.domElement);
     createInstallations(scene, camera, renderer, controls);
     initUI();
     initFloorUI();
