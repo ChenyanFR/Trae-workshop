@@ -11,6 +11,15 @@ let _currentGroup = null;
 let _fields = {};
 let _idSeq = 0;
 
+let _videoMode        = 'url';   // 'url' | 'file'
+let _uploadedVideoURL = '';
+let _videoUrlInput    = null;
+let _videoPanelUrl    = null;
+let _videoPanelFile   = null;
+let _videoFileNameEl  = null;
+let _videoTabUrl      = null;
+let _videoTabFile     = null;
+
 function genId() { return `art_${Date.now()}_${++_idSeq}`; }
 
 const FIELD_DEFS = [
@@ -20,7 +29,6 @@ const FIELD_DEFS = [
   { key: 'medium',      label: 'Medium',           type: 'text',     ph: 'e.g. Oil on canvas / Photography' },
   { key: 'dimensions',  label: 'Dimensions',       type: 'text',     ph: 'e.g. 80×60 cm' },
   { key: 'description', label: 'Description',      type: 'textarea', ph: 'Background, themes, style…' },
-  { key: 'videoURL',    label: 'Video URL (optional)', type: 'text', ph: 'https://…' },
 ];
 
 function makeBtn(label, primary, onClick) {
@@ -100,6 +108,8 @@ function buildModal() {
     panel.appendChild(wrap);
   }
 
+  buildVideoSection(panel);
+
   const btnRow = document.createElement('div');
   Object.assign(btnRow.style, {
     display: 'flex', justifyContent: 'flex-end', gap: '10px',
@@ -115,6 +125,166 @@ function buildModal() {
   _modal = overlay;
 }
 
+// ─── Video section ────────────────────────────────────────────────────────────
+function makeVideoTab(label) {
+  const btn = document.createElement('button');
+  btn.textContent = label;
+  Object.assign(btn.style, {
+    flex: '1', padding: '7px 10px', border: 'none',
+    background: 'transparent', cursor: 'pointer',
+    fontSize: '12px', fontFamily: 'Georgia, serif',
+    color: '#7a5020', transition: 'background 0.15s, color 0.15s',
+    letterSpacing: '0.03em',
+  });
+  return btn;
+}
+
+function setVideoTab(mode) {
+  _videoMode = mode;
+  const on  = { background: '#c8903a', color: '#fff' };
+  const off = { background: 'transparent', color: '#7a5020' };
+  Object.assign(_videoTabUrl.style,  mode === 'url'  ? on : off);
+  Object.assign(_videoTabFile.style, mode === 'file' ? on : off);
+  _videoPanelUrl.style.display  = mode === 'url'  ? '' : 'none';
+  _videoPanelFile.style.display = mode === 'file' ? '' : 'none';
+}
+
+function handleFileSelected(file, dropZone) {
+  if (_uploadedVideoURL.startsWith('blob:')) URL.revokeObjectURL(_uploadedVideoURL);
+  _uploadedVideoURL = URL.createObjectURL(file);
+  _videoFileNameEl._fnText.textContent = file.name;
+  _videoFileNameEl.style.display = 'flex';
+  dropZone.style.display = 'none';
+}
+
+function buildVideoSection(panel) {
+  const wrap = document.createElement('div');
+  wrap.style.marginBottom = '15px';
+
+  const lbl = document.createElement('label');
+  lbl.textContent = 'Video (optional)';
+  Object.assign(lbl.style, {
+    display: 'block', fontSize: '11.5px',
+    color: '#7a5020', letterSpacing: '0.05em', marginBottom: '8px',
+  });
+  wrap.appendChild(lbl);
+
+  // Tab row
+  const tabRow = document.createElement('div');
+  Object.assign(tabRow.style, {
+    display: 'flex', marginBottom: '8px',
+    border: '1px solid #c8b89a', borderRadius: '6px', overflow: 'hidden',
+  });
+  _videoTabUrl  = makeVideoTab('External URL');
+  _videoTabFile = makeVideoTab('Upload File');
+  _videoTabUrl.addEventListener('click',  () => setVideoTab('url'));
+  _videoTabFile.addEventListener('click', () => setVideoTab('file'));
+  tabRow.appendChild(_videoTabUrl);
+  tabRow.appendChild(_videoTabFile);
+  wrap.appendChild(tabRow);
+
+  // ── URL panel ──
+  _videoPanelUrl = document.createElement('div');
+  _videoUrlInput = document.createElement('input');
+  _videoUrlInput.type = 'text';
+  _videoUrlInput.placeholder = 'YouTube, Vimeo, or direct .mp4 URL…';
+  Object.assign(_videoUrlInput.style, {
+    width: '100%', boxSizing: 'border-box',
+    padding: '8px 11px', border: '1px solid #c8b89a',
+    borderRadius: '6px', background: '#faf7f2', color: '#1a1208',
+    fontFamily: 'Georgia, serif', fontSize: '13px', outline: 'none',
+    transition: 'border-color 0.15s',
+  });
+  _videoUrlInput.addEventListener('focus', () => _videoUrlInput.style.borderColor = '#c8903a');
+  _videoUrlInput.addEventListener('blur',  () => _videoUrlInput.style.borderColor = '#c8b89a');
+  _videoPanelUrl.appendChild(_videoUrlInput);
+  wrap.appendChild(_videoPanelUrl);
+
+  // ── File panel ──
+  _videoPanelFile = document.createElement('div');
+  _videoPanelFile.style.display = 'none';
+
+  const fileHiddenInput = document.createElement('input');
+  fileHiddenInput.type = 'file';
+  fileHiddenInput.accept = 'video/*';
+  fileHiddenInput.style.display = 'none';
+
+  const dropZone = document.createElement('div');
+  Object.assign(dropZone.style, {
+    border: '2px dashed #c8b89a', borderRadius: '6px',
+    padding: '22px 16px', textAlign: 'center', cursor: 'pointer',
+    transition: 'border-color 0.15s, background 0.15s',
+  });
+  const dIcon = document.createElement('div');
+  dIcon.textContent = '▶';
+  Object.assign(dIcon.style, { fontSize: '22px', color: '#c8b89a', marginBottom: '6px' });
+  const dText = document.createElement('div');
+  dText.textContent = 'Click to choose  ·  or drag & drop';
+  Object.assign(dText.style, { fontSize: '13px', color: '#7a5020', fontFamily: 'Georgia, serif' });
+  const dSub = document.createElement('div');
+  dSub.textContent = 'MP4 · WebM · MOV · OGG';
+  Object.assign(dSub.style, { fontSize: '11px', color: '#c8b89a', marginTop: '4px' });
+  dropZone.appendChild(dIcon);
+  dropZone.appendChild(dText);
+  dropZone.appendChild(dSub);
+
+  dropZone.addEventListener('click',      () => fileHiddenInput.click());
+  dropZone.addEventListener('mouseenter', () => { dropZone.style.borderColor = '#c8903a'; dropZone.style.background = 'rgba(200,144,58,0.05)'; });
+  dropZone.addEventListener('mouseleave', () => { dropZone.style.borderColor = '#c8b89a'; dropZone.style.background = 'transparent'; });
+  dropZone.addEventListener('dragover',   e => { e.preventDefault(); dropZone.style.borderColor = '#c8903a'; dropZone.style.background = 'rgba(200,144,58,0.05)'; });
+  dropZone.addEventListener('dragleave',  () => { dropZone.style.borderColor = '#c8b89a'; dropZone.style.background = 'transparent'; });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#c8b89a'; dropZone.style.background = 'transparent';
+    const file = e.dataTransfer.files?.[0];
+    if (file?.type.startsWith('video/')) handleFileSelected(file, dropZone);
+  });
+  fileHiddenInput.addEventListener('change', () => {
+    const file = fileHiddenInput.files?.[0];
+    if (file) handleFileSelected(file, dropZone);
+  });
+
+  // Selected file display row
+  _videoFileNameEl = document.createElement('div');
+  Object.assign(_videoFileNameEl.style, {
+    display: 'none', marginTop: '8px', padding: '8px 12px',
+    background: 'rgba(200,144,58,0.08)', borderRadius: '6px',
+    border: '1px solid rgba(200,144,58,0.3)',
+    fontSize: '12px', color: '#5a3010', fontFamily: 'Georgia, serif',
+    alignItems: 'center', gap: '8px',
+  });
+  const fnIcon = document.createElement('span');
+  fnIcon.textContent = '▶'; fnIcon.style.color = '#c8903a';
+  const fnText = document.createElement('span');
+  fnText.style.flex = '1';
+  const fnClear = document.createElement('button');
+  fnClear.textContent = '✕';
+  Object.assign(fnClear.style, {
+    background: 'transparent', border: 'none', cursor: 'pointer',
+    color: '#c8b89a', fontSize: '11px', padding: '0 2px', transition: 'color 0.15s',
+  });
+  fnClear.addEventListener('mouseenter', () => fnClear.style.color = '#7a5020');
+  fnClear.addEventListener('mouseleave', () => fnClear.style.color = '#c8b89a');
+  fnClear.addEventListener('click', () => {
+    _uploadedVideoURL = '';
+    _videoFileNameEl.style.display = 'none';
+    dropZone.style.display = '';
+  });
+  _videoFileNameEl.appendChild(fnIcon);
+  _videoFileNameEl.appendChild(fnText);
+  _videoFileNameEl.appendChild(fnClear);
+  _videoFileNameEl._fnText   = fnText;
+  _videoFileNameEl._dropZone = dropZone;
+
+  _videoPanelFile.appendChild(dropZone);
+  _videoPanelFile.appendChild(fileHiddenInput);
+  _videoPanelFile.appendChild(_videoFileNameEl);
+  wrap.appendChild(_videoPanelFile);
+
+  panel.appendChild(wrap);
+  setVideoTab('url');
+}
+
 function commitSave() {
   if (!_currentGroup) return;
   const prev = _currentGroup.userData.info || {};
@@ -126,7 +296,7 @@ function commitSave() {
     medium:      _fields.medium.value.trim(),
     dimensions:  _fields.dimensions.value.trim(),
     description: _fields.description.value.trim(),
-    videoURL:    _fields.videoURL.value.trim(),
+    videoURL:    _videoMode === 'file' ? _uploadedVideoURL : (_videoUrlInput?.value.trim() ?? ''),
   };
   closeEditor();
 }
@@ -147,6 +317,27 @@ export function openInfoEditor(group) {
   setControlsEnabled(false);
   const info = group.userData.info || {};
   for (const key of Object.keys(_fields)) _fields[key].value = info[key] ?? '';
+
+  // Init video section
+  if (_videoUrlInput) {
+    const vUrl = info.videoURL || '';
+    if (vUrl.startsWith('blob:')) {
+      _uploadedVideoURL = vUrl;
+      if (_videoFileNameEl?._fnText) {
+        _videoFileNameEl._fnText.textContent = 'Previously uploaded video';
+        _videoFileNameEl.style.display = 'flex';
+        if (_videoFileNameEl._dropZone) _videoFileNameEl._dropZone.style.display = 'none';
+      }
+      setVideoTab('file');
+    } else {
+      _videoUrlInput.value = vUrl;
+      _uploadedVideoURL = '';
+      if (_videoFileNameEl) _videoFileNameEl.style.display = 'none';
+      if (_videoFileNameEl?._dropZone) _videoFileNameEl._dropZone.style.display = '';
+      setVideoTab('url');
+    }
+  }
+
   if (!group.userData.info?.id) {
     if (!group.userData.info) group.userData.info = {};
     group.userData.info.id = genId();

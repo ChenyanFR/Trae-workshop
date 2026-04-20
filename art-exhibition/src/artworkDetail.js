@@ -298,7 +298,7 @@ function populateContent(group) {
   // Video URL player (16:9)
   if (info.videoURL) {
     const embedUrl  = getEmbedUrl(info.videoURL);
-    const isDirectV = /\.(mp4|webm|ogg)(\?|$)/i.test(info.videoURL);
+    const isDirectV = /\.(mp4|webm|ogg)(\?|$)/i.test(info.videoURL) || /^blob:/.test(info.videoURL);
     const aspect = document.createElement('div');
     Object.assign(aspect.style, {
       position: 'relative', width: '100%',
