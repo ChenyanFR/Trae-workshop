@@ -4,15 +4,23 @@ let _overlay      = null;
 let _isOpen       = false;
 let _currentGroup = null;
 let _onBack       = null;
+let _allArtworks  = [];
+let _currentIndex = 0;
+let _leftNav      = null;
+let _rightNav     = null;
+let _contentWrap  = null;
 
 export function isDetailOpen() { return _isOpen; }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
-export function openDetail(group, onBack = null) {
+export function openDetail(group, allArtworks = [], onBack = null) {
+  _allArtworks  = allArtworks.length ? allArtworks : (group ? [group] : []);
+  _currentIndex = Math.max(_allArtworks.indexOf(group), 0);
   _currentGroup = group;
   _onBack       = onBack;
   if (!_overlay) { injectStyles(); buildOverlay(); }
-  populateOverlay(group);
+  populateContent(group);
+  updateDetailNav();
   _isOpen = true;
   setControlsEnabled(false);
   _overlay.style.display = 'flex';
@@ -31,18 +39,54 @@ export function closeDetail() {
   }, 400);
 }
 
+// ─── Internal navigation ──────────────────────────────────────────────────────
+function detailGoNext() {
+  if (_allArtworks.length < 2) return;
+  switchDetailTo((_currentIndex + 1) % _allArtworks.length);
+}
+
+function detailGoPrev() {
+  if (_allArtworks.length < 2) return;
+  switchDetailTo((_currentIndex - 1 + _allArtworks.length) % _allArtworks.length);
+}
+
+function switchDetailTo(newIdx) {
+  if (!_contentWrap) return;
+  _contentWrap.style.transition = 'opacity 0.15s ease-out';
+  _contentWrap.style.opacity = '0';
+  setTimeout(() => {
+    _overlay.querySelectorAll('video').forEach(v => { v.pause(); v.src = ''; });
+    _currentIndex = newIdx;
+    _currentGroup = _allArtworks[newIdx];
+    populateContent(_currentGroup);
+    updateDetailNav();
+    requestAnimationFrame(() => {
+      _contentWrap.style.transition = 'opacity 0.15s ease-in';
+      _contentWrap.style.opacity = '1';
+    });
+  }, 150);
+}
+
+function updateDetailNav() {
+  if (!_leftNav || !_rightNav) return;
+  const show = _allArtworks.length > 1;
+  _leftNav.style.display  = show ? 'flex' : 'none';
+  _rightNav.style.display = show ? 'flex' : 'none';
+}
+
 // ─── Internal: go back to focus mode ─────────────────────────────────────────
 function goBack() {
   if (!_isOpen) return;
   const cb    = _onBack;
   const group = _currentGroup;
+  const idx   = _currentIndex;
   _isOpen = false;
   _overlay.style.opacity = '0';
   setTimeout(() => {
     if (_isOpen) return;
     _overlay.style.display = 'none';
     _overlay.querySelectorAll('video').forEach(v => { v.pause(); v.src = ''; });
-    cb?.(group); // re-open focus mode (controls handed back by focusMode)
+    cb?.(group, idx);
   }, 300);
 }
 
@@ -70,6 +114,33 @@ function injectStyles() {
   document.head.appendChild(s);
 }
 
+// ─── Nav button factory ───────────────────────────────────────────────────────
+function makeDetailNavBtn(label, side, onClick) {
+  const btn = document.createElement('button');
+  btn.textContent = label;
+  Object.assign(btn.style, {
+    position: 'fixed', top: '50%', transform: 'translateY(-50%)',
+    [side]: '24px',
+    width: '48px', height: '48px',
+    borderRadius: '50%', border: '1px solid rgba(90,70,50,0.25)',
+    background: 'rgba(90,70,50,0.08)',
+    color: '#5a3a20', fontSize: '20px', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    transition: 'background 0.18s, border-color 0.18s',
+    zIndex: 701, fontFamily: 'sans-serif',
+  });
+  btn.addEventListener('mouseenter', () => {
+    btn.style.background   = 'rgba(90,70,50,0.18)';
+    btn.style.borderColor  = 'rgba(90,70,50,0.5)';
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.style.background   = 'rgba(90,70,50,0.08)';
+    btn.style.borderColor  = 'rgba(90,70,50,0.25)';
+  });
+  btn.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+  return btn;
+}
+
 // ─── Shell overlay ────────────────────────────────────────────────────────────
 function buildOverlay() {
   _overlay = document.createElement('div');
@@ -78,29 +149,11 @@ function buildOverlay() {
     position: 'fixed', inset: '0',
     background: '#f5f1e8',
     zIndex: 700,
-    display: 'none', flexDirection: 'row',
+    display: 'none', flexDirection: 'column',
     opacity: '0', overflow: 'hidden',
   });
 
-  document.addEventListener('keydown', e => {
-    if (!_isOpen) return;
-    if (e.key === 'Escape' || e.key === 'ArrowLeft') {
-      goBack();
-      e.stopImmediatePropagation();
-    }
-  }, true);
-
-  document.body.appendChild(_overlay);
-}
-
-// ─── Content ──────────────────────────────────────────────────────────────────
-function populateOverlay(group) {
-  _overlay.innerHTML = '';
-
-  const info = group.userData.info || {};
-  const tex  = group.userData.artTexture;
-
-  // ── Back button ────────────────────────────────────────────────────────────
+  // Back button
   const backBtn = document.createElement('button');
   backBtn.textContent = '← Back';
   Object.assign(backBtn.style, {
@@ -109,13 +162,58 @@ function populateOverlay(group) {
     color: '#8a7a6a', fontSize: '14px',
     fontFamily: "Georgia, 'SimSun', '宋体', serif",
     letterSpacing: '0.04em', cursor: 'pointer',
-    zIndex: 701, padding: '4px 8px',
+    zIndex: 702, padding: '4px 8px',
     transition: 'color 0.15s',
   });
   backBtn.addEventListener('mouseenter', () => backBtn.style.color = '#2a2218');
   backBtn.addEventListener('mouseleave', () => backBtn.style.color = '#8a7a6a');
   backBtn.addEventListener('click', goBack);
   _overlay.appendChild(backBtn);
+
+  // Left / Right nav buttons
+  _leftNav  = makeDetailNavBtn('←', 'left',  detailGoPrev);
+  _rightNav = makeDetailNavBtn('→', 'right', detailGoNext);
+  _overlay.appendChild(_leftNav);
+  _overlay.appendChild(_rightNav);
+
+  // Content wrapper (fades during artwork switch)
+  _contentWrap = document.createElement('div');
+  Object.assign(_contentWrap.style, {
+    display: 'flex', flexDirection: 'row',
+    width: '100%', height: '100vh',
+    overflow: 'hidden',
+  });
+  _overlay.appendChild(_contentWrap);
+
+  // Keyboard shortcuts (capture phase)
+  document.addEventListener('keydown', e => {
+    if (!_isOpen) return;
+    if (e.key === 'Escape' || e.key === 'ArrowUp') {
+      goBack(); e.stopImmediatePropagation();
+    } else if (e.key === 'ArrowLeft') {
+      detailGoPrev(); e.stopImmediatePropagation();
+    } else if (e.key === 'ArrowRight') {
+      detailGoNext(); e.stopImmediatePropagation();
+    }
+  }, true);
+
+  // Up-swipe >80px → goBack
+  let _sy = null;
+  _overlay.addEventListener('mousedown', e => { _sy = e.clientY; });
+  _overlay.addEventListener('mouseup', e => {
+    if (_sy !== null && _sy - e.clientY > 80) goBack();
+    _sy = null;
+  });
+
+  document.body.appendChild(_overlay);
+}
+
+// ─── Content ──────────────────────────────────────────────────────────────────
+function populateContent(group) {
+  _contentWrap.innerHTML = '';
+
+  const info = group.userData.info || {};
+  const tex  = group.userData.artTexture;
 
   // ── Left panel: artwork image ──────────────────────────────────────────────
   const leftPanel = document.createElement('div');
@@ -149,9 +247,7 @@ function populateOverlay(group) {
     leftPanel.appendChild(img);
   }
 
-  // Left-swipe gesture to go back
-  addSwipeLeft(leftPanel, goBack);
-  _overlay.appendChild(leftPanel);
+  _contentWrap.appendChild(leftPanel);
 
   // ── Right panel: sticky header + scrollable body ──────────────────────────
   const rightPanel = document.createElement('div');
@@ -281,8 +377,7 @@ function populateOverlay(group) {
   }
 
   rightPanel.appendChild(scrollArea);
-  addSwipeLeft(rightPanel, goBack);
-  _overlay.appendChild(rightPanel);
+  _contentWrap.appendChild(rightPanel);
 }
 
 // ─── Embed URL helper ─────────────────────────────────────────────────────────
@@ -292,14 +387,4 @@ function getEmbedUrl(url) {
   const vm = url.match(/vimeo\.com\/(\d+)/);
   if (vm) return `https://player.vimeo.com/video/${vm[1]}`;
   return null;
-}
-
-// ─── Swipe-left helper ────────────────────────────────────────────────────────
-function addSwipeLeft(el, fn) {
-  let startX = null;
-  el.addEventListener('mousedown', e => { startX = e.clientX; });
-  el.addEventListener('mouseup',   e => {
-    if (startX !== null && startX - e.clientX > 100) fn();
-    startX = null;
-  });
 }

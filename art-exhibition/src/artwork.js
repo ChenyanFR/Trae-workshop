@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { openInfoEditor, isEditorOpen, resetHoverState } from './artworkInfo.js';
 import { isCurator, onModeChange } from './userMode.js';
 import { flyTo } from './controls.js';
-import { openFocus, closeFocus, isFocusOpen, onFocusSwipeRight } from './focusMode.js';
-import { openDetail, isDetailOpen } from './artworkDetail.js';
+import { openFocus, closeFocus, isFocusOpen } from './focusMode.js';
+import { isDetailOpen } from './artworkDetail.js';
 
 // ─── Frame presets ────────────────────────────────────────────────────────────
 const FRAME_PRESETS = [
@@ -993,7 +993,7 @@ function onCanvasClick(e) {
   if (isCurator()) return;    // visitor only — curator uses dblclick
   if (isFocusOpen()) return;
   const parent = hitArtwork(e);
-  if (parent) openFocus(parent);
+  if (parent) openFocus(parent, artworks);
 }
 
 function onCanvasDblClick(e) {
@@ -1002,7 +1002,7 @@ function onCanvasDblClick(e) {
   // Curator only: double-click artwork → focus mode
   if (isCurator() && !hangingMode && !editMode) {
     const parent = hitArtwork(e);
-    if (parent) { openFocus(parent); return; }
+    if (parent) { openFocus(parent, artworks); return; }
   }
 
   // Both modes: double-click wall → fly camera to face it
@@ -1119,11 +1119,6 @@ export function isInteracting() { return hangingMode || isDragging || isRotating
 export function createArtworks(scene, camera, renderer, controls) {
   _scene = scene; _camera = camera; _renderer = renderer; _controls = controls;
   buildUploadBtn(); buildHUD(); buildFramePanel(); buildSelectionBar(); buildEditModeBar(); buildCornerHandles();
-
-  onFocusSwipeRight(group => {
-    closeFocus(false); // keep controls locked — detail takes over
-    openDetail(group, g => openFocus(g));
-  });
 
   onModeChange(() => {
     if (isFocusOpen()) closeFocus();
