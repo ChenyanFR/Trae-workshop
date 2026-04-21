@@ -15,6 +15,7 @@ import { setFloorMesh, initFloorUI } from './floor.js';
 import { initModeUI, setMode, MODES } from './userMode.js';
 import { showRoleSelect } from './roleSelect.js';
 import { initDecorateMenu } from './decorateMenu.js';
+import { initVisitorHUD }  from './visitorHUD.js';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -203,6 +204,7 @@ loader.load(
     initFloorUI();
     initModeUI();
     initDecorateMenu();
+    initVisitorHUD();
 
     // ── Top-left toolbar: [Curator/Visitor] [Decorate] in one flex row ──────
     const toolbar = document.createElement('div');
