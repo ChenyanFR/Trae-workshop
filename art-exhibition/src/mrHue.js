@@ -1,5 +1,41 @@
 import { isCurator, onModeChange } from './userMode.js';
 
+// ─── API config ───────────────────────────────────────────────────────────────
+const API_URL   = 'https://api.anthropic.com/v1/messages';
+const API_KEY   = import.meta.env.VITE_ANTHROPIC_API_KEY ?? '';
+const API_MODEL = 'claude-sonnet-4-20250514';
+
+const SYSTEM_PROMPT = `\
+你是 Mr. Hue，一个画廊空间的魔法师。你的职责是根据艺术家的描述，改变展厅的视觉氛围。
+
+回复规则：
+- 用英文回复
+- 语气：神秘、简短、有诗意，不超过2句话
+- 每次回复末尾必须附带一个 JSON 指令块，格式如下：
+
+\`\`\`json
+{
+  "action": "scene_update",
+  "params": {
+    "wallColor": "#hex或null",
+    "ambientLightColor": "#hex或null",
+    "ambientLightIntensity": 0到1之间的数或null,
+    "spotLightColor": "#hex或null",
+    "spotLightIntensity": 0到1之间的数或null,
+    "mood": "warm/cool/dramatic/minimal/null"
+  }
+}
+\`\`\`
+
+mood 预设含义供参考：
+- warm：暖红墙 #8B3A3A，橙黄环境光 #ff9944，强度 0.6
+- cool：深蓝墙 #2a3a5a，蓝色环境光 #4488ff，强度 0.5
+- dramatic：环境光强度压到 0.15，聚光灯加强到 0.9
+- minimal：白墙 #f5f0e8，白色环境光，强度 0.85`;
+
+// Conversation history for multi-turn context
+const _history = [];
+
 let _panel    = null;
 let _miniBtn  = null;
 let _chatArea = null;
@@ -197,11 +233,73 @@ function buildPanel() {
   sendBtn.className = 'mh-send-btn';
   sendBtn.textContent = 'SEND';
 
-  function doSend() {
+  async function doSend() {
     const text = input.value.trim();
     if (!text) return;
+
     input.value = '';
-    // Placeholder: API call will go here
+    input.disabled = true;
+    sendBtn.disabled = true;
+    setStatus('Thinking…');
+    speechSynthesis?.cancel();
+
+    addBubble(text, 'user');
+    _history.push({ role: 'user', content: text });
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: API_MODEL,
+          max_tokens: 512,
+          system: SYSTEM_PROMPT,
+          messages: _history,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text().catch(() => res.statusText);
+        throw new Error(`HTTP ${res.status}: ${err}`);
+      }
+
+      const data = await res.json();
+      const full = data.content?.[0]?.text ?? '';
+
+      // Extract JSON block for scene commands
+      const jsonMatch = full.match(/```json\s*([\s\S]*?)```/i);
+      if (jsonMatch) {
+        try {
+          const cmd = JSON.parse(jsonMatch[1]);
+          console.log('[Mr. Hue] scene command:', cmd);
+        } catch { /* malformed JSON — ignore */ }
+      }
+
+      // Display and speak only the text part (no code fences)
+      const displayText = full
+        .replace(/```json[\s\S]*?```/gi, '')
+        .replace(/```[\s\S]*?```/g, '')
+        .trim();
+
+      _history.push({ role: 'assistant', content: full });
+      addBubble(displayText || full, 'assistant', true);
+
+    } catch (err) {
+      console.error('[Mr. Hue] API error:', err);
+      addBubble('The magic faltered… please try again.', 'assistant', false);
+      setStatus('Ready to help');
+    } finally {
+      // If muted or speech unavailable, restore status here; otherwise speech onend handles it
+      if (isMuted || !window.speechSynthesis) setStatus('Ready to help');
+      input.disabled   = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
   }
 
   sendBtn.addEventListener('click', doSend);
