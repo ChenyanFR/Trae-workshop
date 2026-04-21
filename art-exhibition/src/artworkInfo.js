@@ -11,24 +11,24 @@ let _currentGroup = null;
 let _fields = {};
 let _idSeq = 0;
 
-let _videoMode        = 'url';   // 'url' | 'file'
+let _videoMode = 'url';   // 'url' | 'file'
 let _uploadedVideoURL = '';
-let _videoUrlInput    = null;
-let _videoPanelUrl    = null;
-let _videoPanelFile   = null;
-let _videoFileNameEl  = null;
-let _videoTabUrl      = null;
-let _videoTabFile     = null;
+let _videoUrlInput = null;
+let _videoPanelUrl = null;
+let _videoPanelFile = null;
+let _videoFileNameEl = null;
+let _videoTabUrl = null;
+let _videoTabFile = null;
 
 function genId() { return `art_${Date.now()}_${++_idSeq}`; }
 
 const FIELD_DEFS = [
-  { key: 'title',       label: 'Title',            type: 'text',     ph: 'e.g. Starry Night' },
-  { key: 'artist',      label: 'Artist',           type: 'text',     ph: 'e.g. Van Gogh' },
-  { key: 'year',        label: 'Year',             type: 'text',     ph: 'e.g. 2024' },
-  { key: 'medium',      label: 'Medium',           type: 'text',     ph: 'e.g. Oil on canvas / Photography' },
-  { key: 'dimensions',  label: 'Dimensions',       type: 'text',     ph: 'e.g. 80×60 cm' },
-  { key: 'description', label: 'Description',      type: 'textarea', ph: 'Background, themes, style…' },
+  { key: 'title', label: 'Title', type: 'text', ph: 'e.g. Starry Night' },
+  { key: 'artist', label: 'Artist', type: 'text', ph: 'e.g. Van Gogh' },
+  { key: 'year', label: 'Year', type: 'text', ph: 'e.g. 2024' },
+  { key: 'medium', label: 'Medium', type: 'text', ph: 'e.g. Oil on canvas / Photography' },
+  { key: 'dimensions', label: 'Dimensions', type: 'text', ph: 'e.g. 80×60 cm' },
+  { key: 'description', label: 'Description', type: 'textarea', ph: 'Background, themes, style…' },
 ];
 
 function makeBtn(label, primary, onClick) {
@@ -38,8 +38,8 @@ function makeBtn(label, primary, onClick) {
     padding: '8px 22px', borderRadius: '6px', cursor: 'pointer',
     fontSize: '13px', fontFamily: 'Georgia, serif', letterSpacing: '0.04em',
     background: primary ? '#c8903a' : 'transparent',
-    color:      primary ? '#fff'    : '#7a5020',
-    border:     primary ? 'none'    : '1px solid #c8b89a',
+    color: primary ? '#fff' : '#7a5020',
+    border: primary ? 'none' : '1px solid #c8b89a',
     transition: 'background 0.15s',
   });
   b.addEventListener('mouseenter', () => b.style.background = primary ? '#a07030' : 'rgba(200,144,58,0.12)');
@@ -102,7 +102,7 @@ function buildModal() {
       transition: 'border-color 0.15s',
     });
     inp.addEventListener('focus', () => inp.style.borderColor = '#c8903a');
-    inp.addEventListener('blur',  () => inp.style.borderColor = '#c8b89a');
+    inp.addEventListener('blur', () => inp.style.borderColor = '#c8b89a');
     wrap.appendChild(inp);
     _fields[f.key] = inp;
     panel.appendChild(wrap);
@@ -116,7 +116,7 @@ function buildModal() {
     marginTop: '22px', paddingTop: '18px', borderTop: '1px solid #c8b89a',
   });
   btnRow.appendChild(makeBtn('Skip', false, () => closeEditor()));
-  btnRow.appendChild(makeBtn('Save', true,  () => commitSave()));
+  btnRow.appendChild(makeBtn('Save', true, () => commitSave()));
   panel.appendChild(btnRow);
 
   overlay.appendChild(panel);
@@ -141,11 +141,11 @@ function makeVideoTab(label) {
 
 function setVideoTab(mode) {
   _videoMode = mode;
-  const on  = { background: '#c8903a', color: '#fff' };
+  const on = { background: '#c8903a', color: '#fff' };
   const off = { background: 'transparent', color: '#7a5020' };
-  Object.assign(_videoTabUrl.style,  mode === 'url'  ? on : off);
+  Object.assign(_videoTabUrl.style, mode === 'url' ? on : off);
   Object.assign(_videoTabFile.style, mode === 'file' ? on : off);
-  _videoPanelUrl.style.display  = mode === 'url'  ? '' : 'none';
+  _videoPanelUrl.style.display = mode === 'url' ? '' : 'none';
   _videoPanelFile.style.display = mode === 'file' ? '' : 'none';
 }
 
@@ -175,9 +175,9 @@ function buildVideoSection(panel) {
     display: 'flex', marginBottom: '8px',
     border: '1px solid #c8b89a', borderRadius: '6px', overflow: 'hidden',
   });
-  _videoTabUrl  = makeVideoTab('External URL');
+  _videoTabUrl = makeVideoTab('External URL');
   _videoTabFile = makeVideoTab('Upload File');
-  _videoTabUrl.addEventListener('click',  () => setVideoTab('url'));
+  _videoTabUrl.addEventListener('click', () => setVideoTab('url'));
   _videoTabFile.addEventListener('click', () => setVideoTab('file'));
   tabRow.appendChild(_videoTabUrl);
   tabRow.appendChild(_videoTabFile);
@@ -196,7 +196,7 @@ function buildVideoSection(panel) {
     transition: 'border-color 0.15s',
   });
   _videoUrlInput.addEventListener('focus', () => _videoUrlInput.style.borderColor = '#c8903a');
-  _videoUrlInput.addEventListener('blur',  () => _videoUrlInput.style.borderColor = '#c8b89a');
+  _videoUrlInput.addEventListener('blur', () => _videoUrlInput.style.borderColor = '#c8b89a');
   _videoPanelUrl.appendChild(_videoUrlInput);
   wrap.appendChild(_videoPanelUrl);
 
@@ -228,11 +228,11 @@ function buildVideoSection(panel) {
   dropZone.appendChild(dText);
   dropZone.appendChild(dSub);
 
-  dropZone.addEventListener('click',      () => fileHiddenInput.click());
+  dropZone.addEventListener('click', () => fileHiddenInput.click());
   dropZone.addEventListener('mouseenter', () => { dropZone.style.borderColor = '#c8903a'; dropZone.style.background = 'rgba(200,144,58,0.05)'; });
   dropZone.addEventListener('mouseleave', () => { dropZone.style.borderColor = '#c8b89a'; dropZone.style.background = 'transparent'; });
-  dropZone.addEventListener('dragover',   e => { e.preventDefault(); dropZone.style.borderColor = '#c8903a'; dropZone.style.background = 'rgba(200,144,58,0.05)'; });
-  dropZone.addEventListener('dragleave',  () => { dropZone.style.borderColor = '#c8b89a'; dropZone.style.background = 'transparent'; });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = '#c8903a'; dropZone.style.background = 'rgba(200,144,58,0.05)'; });
+  dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#c8b89a'; dropZone.style.background = 'transparent'; });
   dropZone.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.style.borderColor = '#c8b89a'; dropZone.style.background = 'transparent';
@@ -273,7 +273,7 @@ function buildVideoSection(panel) {
   _videoFileNameEl.appendChild(fnIcon);
   _videoFileNameEl.appendChild(fnText);
   _videoFileNameEl.appendChild(fnClear);
-  _videoFileNameEl._fnText   = fnText;
+  _videoFileNameEl._fnText = fnText;
   _videoFileNameEl._dropZone = dropZone;
 
   _videoPanelFile.appendChild(dropZone);
@@ -289,14 +289,14 @@ function commitSave() {
   if (!_currentGroup) return;
   const prev = _currentGroup.userData.info || {};
   _currentGroup.userData.info = {
-    id:          prev.id || genId(),
-    title:       _fields.title.value.trim(),
-    artist:      _fields.artist.value.trim(),
-    year:        _fields.year.value.trim(),
-    medium:      _fields.medium.value.trim(),
-    dimensions:  _fields.dimensions.value.trim(),
+    id: prev.id || genId(),
+    title: _fields.title.value.trim(),
+    artist: _fields.artist.value.trim(),
+    year: _fields.year.value.trim(),
+    medium: _fields.medium.value.trim(),
+    dimensions: _fields.dimensions.value.trim(),
     description: _fields.description.value.trim(),
-    videoURL:    _videoMode === 'file' ? _uploadedVideoURL : (_videoUrlInput?.value.trim() ?? ''),
+    videoURL: _videoMode === 'file' ? _uploadedVideoURL : (_videoUrlInput?.value.trim() ?? ''),
   };
   closeEditor();
 }
@@ -354,38 +354,37 @@ export function isEditorOpen() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 let _card = null;
-let _cardHovered   = false;
+let _cardHovered = false;
 let _lastCardGroup = null;
 let _timedOutGroup = null;
-let _cardShowTime  = 0;
-let _hideTimeout   = null;
-const CARD_TTL_MS  = 3000;
-const HIDE_DELAY   = 300;
+let _cardShowTime = 0;
+let _hideTimeout = null;
+const CARD_TTL_MS = 3000;
+const HIDE_DELAY = 300;
 
 // ── Visitor right-side panel (positioned next to artwork) ────────────────────
-let _visitorCard   = null;
-let _vcHovered     = false;
-const VC_WIDTH     = 400;
+let _visitorCard = null;
+let _vcHovered = false;
+const VC_WIDTH = 320;
 
 function buildVisitorCard() {
   _visitorCard = document.createElement('div');
   Object.assign(_visitorCard.style, {
     position: 'fixed',
     left: '-9999px', top: '0',          // parked off-screen until positioned
-    width: VC_WIDTH + 'px', maxHeight: '50vh',
+    width: '16rem',
     background: 'rgba(255,250,240,0.95)',
-    padding: '28px 36px', boxSizing: 'border-box',
-    borderRadius: '4px',
+    padding: '1rem 1.25rem', boxSizing: 'border-box',
+    borderRadius: '0.75rem',
     boxShadow: '0 4px 32px rgba(0,0,0,0.22)',
     backdropFilter: 'blur(10px)',
-    overflowY: 'auto',
     transition: 'transform 0.3s ease-out, opacity 0.3s ease-out',
     zIndex: 150, opacity: '0', pointerEvents: 'none',
     fontFamily: 'Georgia, serif',
     transform: 'translateY(-50%) translateX(0)',
   });
   _visitorCard.id = 'visitor-hover-card';
-  _visitorCard.addEventListener('mouseenter', () => { _vcHovered = true;  cancelHide(); });
+  _visitorCard.addEventListener('mouseenter', () => { _vcHovered = true; cancelHide(); });
   _visitorCard.addEventListener('mouseleave', () => { _vcHovered = false; scheduleHide(); });
 
   if (!document.getElementById('visitor-hover-card-css')) {
@@ -433,7 +432,7 @@ function calcVisitorCardPos(group, camera) {
     }
   }
 
-  const cy  = (minSY + maxSY) / 2;
+  const cy = (minSY + maxSY) / 2;
   const GAP = 30;
 
   if (maxSX + GAP + VC_WIDTH > window.innerWidth) {
@@ -449,42 +448,41 @@ function fillVisitorCard(group) {
   const title = document.createElement('div');
   title.textContent = info.title || 'Untitled';
   Object.assign(title.style, {
-    fontSize: '24px', fontWeight: 'normal',
+    fontSize: '1.1rem', fontWeight: 'normal',
     color: info.title ? '#2a2218' : '#8a7a6a',
     fontStyle: info.title ? 'normal' : 'italic',
-    marginBottom: '16px', lineHeight: '1.3',
+    marginBottom: '9px', lineHeight: '1.6',
   });
   _visitorCard.appendChild(title);
 
   if (info.description) {
     const maxLen = 150;
-    const text   = info.description.length > maxLen
+    const text = info.description.length > maxLen
       ? info.description.slice(0, maxLen) + '…'
       : info.description;
     const desc = document.createElement('div');
     desc.className = 'vc-desc';
     desc.textContent = text;
     Object.assign(desc.style, {
-      fontSize: '13px', lineHeight: '1.8',
+      fontSize: '0.8rem', lineHeight: '1.6',
       color: '#3a3228', textIndent: '2em',
-      maxHeight: '200px', overflowY: 'auto',
-      marginBottom: '20px',
+      marginBottom: '11px',
     });
     _visitorCard.appendChild(desc);
   }
 
   const metaRows = [
     ['Artist', info.artist],
-    ['Year',   info.year],
-    ['Size',   info.dimensions],
+    ['Year', info.year],
+    ['Size', info.dimensions],
   ].filter(([, v]) => v);
 
   if (metaRows.length) {
     const meta = document.createElement('div');
     Object.assign(meta.style, {
       borderTop: '1px solid rgba(0,0,0,0.1)',
-      marginTop: '20px', paddingTop: '16px',
-      fontSize: '11px', lineHeight: '2.0', color: '#8a7a6a',
+      marginTop: '11px', paddingTop: '9px',
+      fontSize: '0.75rem', lineHeight: '1.6', color: '#8a7a6a',
     });
     metaRows.forEach(([label, value]) => {
       const row = document.createElement('div');
@@ -503,16 +501,16 @@ function slideInVisitorCard(group, camera) {
   _visitorCard.dataset.side = pos.side;
 
   // Park at calculated position with slide-in offset (toward artwork)
-  _visitorCard.style.left      = pos.x + 'px';
-  _visitorCard.style.top       = pos.y + 'px';
+  _visitorCard.style.left = pos.x + 'px';
+  _visitorCard.style.top = pos.y + 'px';
   const offset = pos.side === 'right' ? '-10px' : '10px';
   _visitorCard.style.transform = `translateY(-50%) translateX(${offset})`;
-  _visitorCard.style.opacity   = '0';
+  _visitorCard.style.opacity = '0';
   _visitorCard.style.pointerEvents = 'auto';
 
   requestAnimationFrame(() => {
     _visitorCard.style.transform = 'translateY(-50%) translateX(0)';
-    _visitorCard.style.opacity   = '1';
+    _visitorCard.style.opacity = '1';
   });
 }
 
@@ -521,15 +519,15 @@ function updateVisitorCardPos(group, camera) {
   const pos = calcVisitorCardPos(group, camera);
   // Update position without transition (left/top not in transition list)
   _visitorCard.style.left = pos.x + 'px';
-  _visitorCard.style.top  = pos.y + 'px';
+  _visitorCard.style.top = pos.y + 'px';
 }
 
 function slideOutVisitorCard() {
   if (!_visitorCard) return;
-  const side   = _visitorCard.dataset.side || 'right';
+  const side = _visitorCard.dataset.side || 'right';
   const offset = side === 'right' ? '-10px' : '10px';
   _visitorCard.style.transform = `translateY(-50%) translateX(${offset})`;
-  _visitorCard.style.opacity   = '0';
+  _visitorCard.style.opacity = '0';
   _visitorCard.style.pointerEvents = 'none';
 }
 
@@ -539,8 +537,8 @@ export function resetHoverState() {
   slideOutVisitorCard();
   _lastCardGroup = null;
   _timedOutGroup = null;
-  _cardHovered   = false;
-  _vcHovered     = false;
+  _cardHovered = false;
+  _vcHovered = false;
 }
 
 function scheduleHide() {
@@ -558,7 +556,7 @@ function cancelHide() {
   clearTimeout(_hideTimeout);
   _hideTimeout = null;
 }
-const _rc   = new THREE.Raycaster();
+const _rc = new THREE.Raycaster();
 const _mNDC = new THREE.Vector2(-9999, -9999);
 
 function buildCard() {
@@ -579,7 +577,7 @@ function buildCard() {
     lineHeight: '1.6',
     transform: 'translateX(-50%)',
   });
-  _card.addEventListener('mouseenter', () => { _cardHovered = true;  cancelHide(); });
+  _card.addEventListener('mouseenter', () => { _cardHovered = true; cancelHide(); });
   _card.addEventListener('mouseleave', () => { _cardHovered = false; scheduleHide(); });
   document.body.appendChild(_card);
 }
@@ -675,8 +673,8 @@ export function initHoverPreview(canvas) {
   buildCard();
   canvas.addEventListener('mousemove', e => {
     const r = canvas.getBoundingClientRect();
-    _mNDC.x =  ((e.clientX - r.left) / r.width)  * 2 - 1;
-    _mNDC.y = -((e.clientY - r.top)  / r.height) * 2 + 1;
+    _mNDC.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    _mNDC.y = -((e.clientY - r.top) / r.height) * 2 + 1;
   });
   canvas.addEventListener('mouseleave', () => {
     _mNDC.set(-9999, -9999);
@@ -688,7 +686,7 @@ export function tickHoverPreview(camera, renderer, artworks, interacting) {
   if (!_card) return;
 
   const visitorMode = !isCurator();
-  const cardHov     = visitorMode ? _vcHovered : _cardHovered;
+  const cardHov = visitorMode ? _vcHovered : _cardHovered;
 
   // Card/panel is being hovered
   if (cardHov) {
@@ -763,6 +761,6 @@ export function tickHoverPreview(camera, renderer, artworks, interacting) {
 
   const el = renderer.domElement;
   _card.style.left = Math.round((v.x + 1) / 2 * el.clientWidth) + 'px';
-  _card.style.top  = Math.round((1 - v.y) / 2 * el.clientHeight + 4) + 'px';
+  _card.style.top = Math.round((1 - v.y) / 2 * el.clientHeight + 4) + 'px';
   _card.style.opacity = '1';
 }
