@@ -47,7 +47,8 @@ scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 pmrem.dispose();
 
 // ─── Base lighting + controls (synchronous — work during loading too) ─────────
-scene.add(new THREE.AmbientLight(0xfff5e0, 0.3));
+const ambientLight = new THREE.AmbientLight(0xfff5e0, 0.3);
+scene.add(ambientLight);
 const controls = initControls(camera, renderer);
 
 // ─── Render loop starts immediately (loading screen covers canvas) ────────────
@@ -240,6 +241,12 @@ loader.load(
 );
 
 // ─── Resize ───────────────────────────────────────────────────────────────────
+// ─── Scene control API (used by mrHue.js) ────────────────────────────────────
+export function setAmbientLight(hexColor, intensity) {
+  if (hexColor  != null) ambientLight.color.set(hexColor);
+  if (intensity != null) ambientLight.intensity = intensity;
+}
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();

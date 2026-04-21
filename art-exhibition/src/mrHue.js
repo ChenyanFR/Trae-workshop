@@ -1,4 +1,6 @@
 import { isCurator, onModeChange } from './userMode.js';
+import { setRoomColor }   from './room.js';
+import { setAmbientLight } from './main.js';
 
 // ─── API config ───────────────────────────────────────────────────────────────
 const API_URL   = 'https://api.anthropic.com/v1/messages';
@@ -6,32 +8,61 @@ const API_KEY   = import.meta.env.VITE_ANTHROPIC_API_KEY ?? '';
 const API_MODEL = 'claude-sonnet-4-20250514';
 
 const SYSTEM_PROMPT = `\
-你是 Mr. Hue，一个画廊空间的魔法师。你的职责是根据艺术家的描述，改变展厅的视觉氛围。
+You are Mr. Hue, the magician of a gallery space.
+Your job is to transform the gallery atmosphere based on the artist's description.
 
-回复规则：
-- 用英文回复
-- 语气：神秘、简短、有诗意，不超过2句话
-- 每次回复末尾必须附带一个 JSON 指令块，格式如下：
+STRICT OUTPUT RULES — you must follow these every single time, no exceptions:
+1. Write exactly 1-2 sentences of poetic response in plain text.
+2. Then output a JSON block using exactly this format, with no extra text after it:
 
 \`\`\`json
 {
   "action": "scene_update",
   "params": {
-    "wallColor": "#hex或null",
-    "ambientLightColor": "#hex或null",
-    "ambientLightIntensity": 0到1之间的数或null,
-    "spotLightColor": "#hex或null",
-    "spotLightIntensity": 0到1之间的数或null,
-    "mood": "warm/cool/dramatic/minimal/null"
+    "wallColor": "#hexcode or null",
+    "ambientLightColor": "#hexcode or null",
+    "ambientLightIntensity": 0.0 to 1.0 or null,
+    "spotLightColor": "#hexcode or null",
+    "spotLightIntensity": 0.0 to 1.0 or null,
+    "mood": "warm or cool or dramatic or minimal or null"
   }
 }
 \`\`\`
 
-mood 预设含义供参考：
-- warm：暖红墙 #8B3A3A，橙黄环境光 #ff9944，强度 0.6
-- cool：深蓝墙 #2a3a5a，蓝色环境光 #4488ff，强度 0.5
-- dramatic：环境光强度压到 0.15，聚光灯加强到 0.9
-- minimal：白墙 #f5f0e8，白色环境光，强度 0.85`;
+EXAMPLES — always fill in the params, never leave all fields null:
+
+User says "make it warm" → reply with mood: "warm"
+\`\`\`json
+{
+  "action": "scene_update",
+  "params": {
+    "wallColor": null,
+    "ambientLightColor": null,
+    "ambientLightIntensity": null,
+    "spotLightColor": null,
+    "spotLightIntensity": null,
+    "mood": "warm"
+  }
+}
+\`\`\`
+
+User says "blue dramatic lighting" → reply with specific colors:
+\`\`\`json
+{
+  "action": "scene_update",
+  "params": {
+    "wallColor": "#1a1a2e",
+    "ambientLightColor": "#2244aa",
+    "ambientLightIntensity": 0.3,
+    "spotLightColor": null,
+    "spotLightIntensity": null,
+    "mood": null
+  }
+}
+\`\`\`
+
+RULE: At least one param must be non-null in every response.
+NEVER skip the JSON block. NEVER output only text. Every reply must end with the JSON block.`;
 
 // Conversation history for multi-turn context
 const _history = [];
@@ -99,6 +130,39 @@ function toggleMute() {
   if (isMuted) {
     speechSynthesis?.cancel();
     setStatus('Ready to help');
+  }
+}
+
+// ─── Scene update ─────────────────────────────────────────────────────────────
+const WALL_NAMES = [
+  'Exhibition_Wall_01', 'Exhibition_Wall_02',
+  'Exhibition_Wall_03', 'Exhibition_Wall_04',
+  'Exhibition_End_Wall_01', 'Exhibition_End_Wall_02',
+];
+
+const MOODS = {
+  warm:     { wall: '#8B3A3A', ambient: '#ff9944', intensity: 0.6  },
+  cool:     { wall: '#2a3a5a', ambient: '#4488ff', intensity: 0.5  },
+  dramatic: { wall: null,      ambient: '#1a0a0a', intensity: 0.15 },
+  minimal:  { wall: '#f5f0e8', ambient: '#ffffff', intensity: 0.85 },
+};
+
+function applySceneUpdate(params) {
+  if (!params) return;
+
+  // mood overrides individual params
+  if (params.mood && MOODS[params.mood]) {
+    const m = MOODS[params.mood];
+    if (m.wall) WALL_NAMES.forEach(n => setRoomColor(n, m.wall));
+    setAmbientLight(m.ambient, m.intensity);
+    return;
+  }
+
+  if (params.wallColor) {
+    WALL_NAMES.forEach(n => setRoomColor(n, params.wallColor));
+  }
+  if (params.ambientLightColor != null || params.ambientLightIntensity != null) {
+    setAmbientLight(params.ambientLightColor, params.ambientLightIntensity);
   }
 }
 
@@ -271,16 +335,24 @@ function buildPanel() {
       const data = await res.json();
       const full = data.content?.[0]?.text ?? '';
 
-      // Extract JSON block for scene commands
-      const jsonMatch = full.match(/```json\s*([\s\S]*?)```/i);
+      console.log('[Mr. Hue] raw response:', full);
+
+      // Extract JSON block — handle optional whitespace and Windows line-endings
+      const jsonMatch = full.match(/```json\r?\n?([\s\S]*?)\r?\n?```/i);
+      console.log('[Mr. Hue] json block found:', !!jsonMatch, jsonMatch?.[1]?.slice(0, 120));
       if (jsonMatch) {
         try {
-          const cmd = JSON.parse(jsonMatch[1]);
-          console.log('[Mr. Hue] scene command:', cmd);
-        } catch { /* malformed JSON — ignore */ }
+          const cmd = JSON.parse(jsonMatch[1].trim());
+          console.log('[Mr. Hue] parsed command:', cmd);
+          if (cmd.action === 'scene_update') applySceneUpdate(cmd.params);
+        } catch (parseErr) {
+          console.warn('[Mr. Hue] JSON parse failed:', parseErr, jsonMatch[1]);
+        }
+      } else {
+        console.warn('[Mr. Hue] no JSON block in response — scene not updated');
       }
 
-      // Display and speak only the text part (no code fences)
+      // Display and speak only the text part (strip all code fences)
       const displayText = full
         .replace(/```json[\s\S]*?```/gi, '')
         .replace(/```[\s\S]*?```/g, '')
