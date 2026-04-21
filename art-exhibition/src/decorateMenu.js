@@ -40,6 +40,9 @@ export function initDecorateMenu() {
   let open = false;
 
   function openMenu() {
+    const rect = trigger.getBoundingClientRect();
+    menu.style.top  = (rect.bottom + 4) + 'px';
+    menu.style.left = rect.left + 'px';
     open = true;
     menu.classList.add('open');
     document.getElementById('decorate-caret').textContent = '▴';
@@ -80,7 +83,6 @@ function injectCSS() {
   s.id = 'decorate-menu-css';
   s.textContent = `
     #decorate-trigger {
-      position: fixed; top: 16px; left: 16px; z-index: 100;
       padding: 10px 16px;
       background: rgba(20,12,4,0.82);
       color: #f0e6d0;
@@ -101,7 +103,7 @@ function injectCSS() {
     }
 
     #decorate-menu {
-      position: fixed; top: 55px; left: 16px; z-index: 300;
+      position: fixed; z-index: 300;
       background: rgba(12,7,3,0.96);
       border: 1px solid #8a6a3a;
       border-radius: 8px;

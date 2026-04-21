@@ -204,6 +204,19 @@ loader.load(
     initModeUI();
     initDecorateMenu();
 
+    // ── Top-left toolbar: [Curator/Visitor] [Decorate] in one flex row ──────
+    const toolbar = document.createElement('div');
+    Object.assign(toolbar.style, {
+      position: 'fixed', top: '16px', left: '16px',
+      display: 'flex', alignItems: 'center', gap: '8px',
+      zIndex: 100,
+    });
+    document.body.appendChild(toolbar);
+    const modeBtn    = document.getElementById('mode-toggle-btn');
+    const decorateBtn = document.getElementById('decorate-trigger');
+    if (modeBtn)     toolbar.appendChild(modeBtn);
+    if (decorateBtn) toolbar.appendChild(decorateBtn);
+
     hideLoadingScreen();
     showRoleSelect(role => {
       setMode(role === 'curator' ? MODES.CURATOR : MODES.VISITOR);

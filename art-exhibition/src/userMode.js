@@ -42,14 +42,15 @@ export function initModeUI() {
     },
   };
 
+  btn.id = 'mode-toggle-btn';
   Object.assign(btn.style, {
-    position: 'fixed', top: '154px', left: '16px',
     padding: '10px 16px',
     borderRadius: '6px', cursor: 'pointer',
     fontSize: '14px', fontFamily: 'serif',
-    letterSpacing: '0.04em', zIndex: 100,
+    letterSpacing: '0.04em',
     backdropFilter: 'blur(4px)',
     transition: 'background 0.18s, color 0.18s, border-color 0.18s',
+    whiteSpace: 'nowrap',
   });
 
   function applyStyle() {
