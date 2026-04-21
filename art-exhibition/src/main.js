@@ -12,7 +12,8 @@ import { createInstallations } from './installation.js';
 import { initControls }    from './controls.js';
 import { initUI }          from './ui.js';
 import { setFloorMesh, initFloorUI } from './floor.js';
-import { initModeUI } from './userMode.js';
+import { initModeUI, setMode, MODES } from './userMode.js';
+import { showRoleSelect } from './roleSelect.js';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -202,6 +203,9 @@ loader.load(
     initModeUI();
 
     hideLoadingScreen();
+    showRoleSelect(role => {
+      setMode(role === 'curator' ? MODES.CURATOR : MODES.VISITOR);
+    });
   },
 
   // ── Progress ──────────────────────────────────────────────────────────────────
