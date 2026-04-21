@@ -34,31 +34,21 @@ const PALETTE = [
 let activeSurface = SURFACES[0];
 const surfaceColors = Object.fromEntries(SURFACES.map(s => [s.id, s.current]));
 
+let _wallPanel = null;
+export function toggleWallPanel() { if (_wallPanel) _wallPanel.style.display = _wallPanel.style.display === 'none' ? 'block' : 'none'; }
+export function closeWallPanel()  { if (_wallPanel) _wallPanel.style.display = 'none'; }
+
 // ─── Build UI ─────────────────────────────────────────────────────────────────
 export function initUI() {
   buildWallColorPanel();
 }
 
 function buildWallColorPanel() {
-  // ── Toggle button ──────────────────────────────────────────────────────────
-  const toggleBtn = document.createElement('button');
-  toggleBtn.textContent = '🎨 Walls';
-  Object.assign(toggleBtn.style, {
-    position: 'fixed', top: '16px', left: '16px',
-    padding: '10px 16px', background: 'rgba(20,12,4,0.82)',
-    color: '#f0e6d0', border: '1px solid #8a6a3a',
-    borderRadius: '6px', cursor: 'pointer', fontSize: '14px',
-    fontFamily: 'serif', letterSpacing: '0.04em', zIndex: 100,
-    backdropFilter: 'blur(4px)',
-  });
-  toggleBtn.addEventListener('mouseenter', () => toggleBtn.style.background = 'rgba(90,50,10,0.9)');
-  toggleBtn.addEventListener('mouseleave', () => toggleBtn.style.background = 'rgba(20,12,4,0.82)');
-  document.body.appendChild(toggleBtn);
-
   // ── Panel ─────────────────────────────────────────────────────────────────
-  const panel = document.createElement('div');
+  _wallPanel = document.createElement('div');
+  const panel = _wallPanel;
   Object.assign(panel.style, {
-    position: 'fixed', top: '58px', left: '16px',
+    position: 'fixed', top: '55px', left: '16px',
     background: 'rgba(12,7,3,0.94)', border: '1px solid #6a4a20',
     borderRadius: '10px', padding: '18px 20px',
     color: '#f0e0c0', fontFamily: 'serif', zIndex: 200,
@@ -67,10 +57,6 @@ function buildWallColorPanel() {
     boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
   });
   document.body.appendChild(panel);
-
-  toggleBtn.addEventListener('click', () => {
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  });
 
   // Title
   const title = document.createElement('div');

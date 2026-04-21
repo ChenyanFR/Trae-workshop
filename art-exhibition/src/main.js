@@ -14,6 +14,7 @@ import { initUI }          from './ui.js';
 import { setFloorMesh, initFloorUI } from './floor.js';
 import { initModeUI, setMode, MODES } from './userMode.js';
 import { showRoleSelect } from './roleSelect.js';
+import { initDecorateMenu } from './decorateMenu.js';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -201,6 +202,7 @@ loader.load(
     initUI();
     initFloorUI();
     initModeUI();
+    initDecorateMenu();
 
     hideLoadingScreen();
     showRoleSelect(role => {

@@ -267,25 +267,16 @@ export function applyFloorPreset(id) {
   });
 }
 
+let _floorPanel = null;
+export function toggleFloorPanel() { if (_floorPanel) _floorPanel.style.display = _floorPanel.style.display === 'none' ? 'block' : 'none'; }
+export function closeFloorPanel()  { if (_floorPanel) _floorPanel.style.display = 'none'; }
+
 // ─── UI ───────────────────────────────────────────────────────────────────────
 export function initFloorUI() {
-  const toggleBtn = document.createElement('button');
-  toggleBtn.textContent = '🏛 Floor';
-  Object.assign(toggleBtn.style, {
-    position: 'fixed', top: '108px', left: '16px',
-    padding: '10px 16px', background: 'rgba(20,12,4,0.82)',
-    color: '#f0e6d0', border: '1px solid #8a6a3a',
-    borderRadius: '6px', cursor: 'pointer', fontSize: '14px',
-    fontFamily: 'serif', letterSpacing: '0.04em', zIndex: 100,
-    backdropFilter: 'blur(4px)',
-  });
-  toggleBtn.addEventListener('mouseenter', () => toggleBtn.style.background = 'rgba(90,50,10,0.9)');
-  toggleBtn.addEventListener('mouseleave', () => toggleBtn.style.background = 'rgba(20,12,4,0.82)');
-  document.body.appendChild(toggleBtn);
-
-  const panel = document.createElement('div');
+  _floorPanel = document.createElement('div');
+  const panel = _floorPanel;
   Object.assign(panel.style, {
-    position: 'fixed', top: '154px', left: '16px',
+    position: 'fixed', top: '55px', left: '16px',
     background: 'rgba(12,7,3,0.94)', border: '1px solid #6a4a20',
     borderRadius: '10px', padding: '16px 18px',
     color: '#f0e0c0', fontFamily: 'serif', zIndex: 200,
@@ -294,10 +285,6 @@ export function initFloorUI() {
     boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
   });
   document.body.appendChild(panel);
-
-  toggleBtn.addEventListener('click', () => {
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  });
 
   const title = document.createElement('div');
   title.textContent = 'Floor Material';
