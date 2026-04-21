@@ -16,6 +16,7 @@ import { initModeUI, setMode, MODES } from './userMode.js';
 import { showRoleSelect } from './roleSelect.js';
 import { initDecorateMenu } from './decorateMenu.js';
 import { initVisitorHUD }  from './visitorHUD.js';
+import { initMrHue }       from './mrHue.js';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -205,6 +206,7 @@ loader.load(
     initModeUI();
     initDecorateMenu();
     initVisitorHUD();
+    initMrHue();
 
     // ── Top-left toolbar: [Curator/Visitor] [Decorate] in one flex row ──────
     const toolbar = document.createElement('div');
