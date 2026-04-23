@@ -16,7 +16,7 @@ import { initModeUI, setMode, MODES } from './userMode.js';
 import { showRoleSelect } from './roleSelect.js';
 import { initDecorateMenu } from './decorateMenu.js';
 import { initVisitorHUD }  from './visitorHUD.js';
-import { initMrHue }       from './mrHue.js';
+import { initMrHue, onArtistEnter } from './mrHue.js';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -225,6 +225,7 @@ loader.load(
     hideLoadingScreen();
     showRoleSelect(role => {
       setMode(role === 'curator' ? MODES.CURATOR : MODES.VISITOR);
+      if (role === 'curator') onArtistEnter();
     });
   },
 

@@ -7,6 +7,10 @@ const API_URL   = 'https://api.anthropic.com/v1/messages';
 const API_KEY   = import.meta.env.VITE_ANTHROPIC_API_KEY ?? '';
 const API_MODEL = 'claude-sonnet-4-20250514';
 
+const OPENING_LINE =
+  "I'm Mr. Hue, the magician behind these walls. " +
+  "Tell me how this gallery should feel — and I'll see what I can do.";
+
 const SYSTEM_PROMPT = `\
 You are Mr. Hue, the magician of a gallery space.
 Your job is to transform the gallery atmosphere based on the artist's description.
@@ -170,7 +174,12 @@ function applySceneUpdate(params) {
 export function initMrHue() {
   resolveVoice();
   onModeChange(syncMode);
-  syncMode();
+  // Don't call syncMode() here — panel is built via onArtistEnter() after role select
+}
+
+export function onArtistEnter() {
+  syncMode();  // builds + shows panel if not yet built
+  setTimeout(() => speak(OPENING_LINE), 800);
 }
 
 // ─── Role sync ────────────────────────────────────────────────────────────────
@@ -274,13 +283,7 @@ function buildPanel() {
   _chatArea.className = 'mh-chat';
   _chatArea.id = 'mh-chat';
 
-  const openingLine =
-    "I'm Mr. Hue, the magician behind these walls. " +
-    "Tell me how this gallery should feel — and I'll see what I can do.";
-
-  addBubble(openingLine, 'assistant');
-  // Speak after entrance animation finishes (~300ms transition + buffer)
-  setTimeout(() => speak(openingLine), 800);
+  addBubble(OPENING_LINE, 'assistant');
 
   panel.appendChild(_chatArea);
 
