@@ -8,10 +8,32 @@ const EYE_Y = 1.7;
 
 export function setBounds(x, z) { BOUND_X = x; BOUND_Z = z; }
 
+let _enabled = true;
+export function setControlsEnabled(v) { _enabled = v; }
+
+// ─── Smooth camera fly-to ─────────────────────────────────────────────────────
+let _fly = null;
+let _flyCamera = null;
+let _flyControls = null;
+
+export function flyTo(camPos, target, duration = 0.8) {
+  if (!_flyCamera) return;
+  _fly = {
+    camPos:     camPos.clone(),
+    target:     target.clone(),
+    duration,
+    start:      performance.now(),
+    fromCam:    _flyCamera.position.clone(),
+    fromTarget: _flyControls.target.clone(),
+  };
+}
+
 const MOVE_SPEED = 4.0;   // metres per second
 
 export function initControls(camera, renderer) {
   const controls = new OrbitControls(camera, renderer.domElement);
+  _flyCamera = camera;
+  _flyControls = controls;
 
   controls.target.set(0, EYE_Y, 0);
 
@@ -31,10 +53,15 @@ export function initControls(camera, renderer) {
   const keys = { w: false, a: false, s: false, d: false, q: false, e: false };
 
   window.addEventListener('keydown', (e) => {
+    if (!_enabled) return;
+    const t = e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA') return;
     const k = e.key.toLowerCase();
     if (k in keys) { keys[k] = true; e.preventDefault(); }
   });
   window.addEventListener('keyup', (e) => {
+    const t = e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA') return;
     const k = e.key.toLowerCase();
     if (k in keys) keys[k] = false;
   });
@@ -52,7 +79,22 @@ export function initControls(camera, renderer) {
     const dt  = Math.min((now - lastTime) / 1000, 0.05); // seconds, capped
     lastTime  = now;
 
-    const moving = keys.w || keys.a || keys.s || keys.d || keys.q || keys.e;
+    const moving = _enabled && (keys.w || keys.a || keys.s || keys.d || keys.q || keys.e);
+
+    // Fly animation — cancelled by any key movement
+    if (_fly) {
+      if (moving) {
+        _fly = null;
+      } else {
+        const t = Math.min((now - _fly.start) / (_fly.duration * 1000), 1);
+        const e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // ease-in-out
+        camera.position.lerpVectors(_fly.fromCam,    _fly.camPos, e);
+        controls.target.lerpVectors(_fly.fromTarget, _fly.target, e);
+        if (t >= 1) _fly = null;
+        controls.update();
+        return;
+      }
+    }
     if (moving) {
       // Horizontal forward = direction camera is looking, projected onto XZ plane
       camera.getWorldDirection(forward);

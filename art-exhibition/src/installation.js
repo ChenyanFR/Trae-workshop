@@ -514,26 +514,14 @@ function onKeyDown(e) {
 }
 
 // ─── UI ───────────────────────────────────────────────────────────────────────
-function buildUI() {
-  // Toggle button
-  const btn = document.createElement('button');
-  btn.textContent = '🗿 Objects';
-  Object.assign(btn.style, {
-    position:'fixed', top:'62px', left:'16px',
-    padding:'10px 16px', background:'rgba(20,12,4,0.82)',
-    color:'#f0e6d0', border:'1px solid #8a6a3a',
-    borderRadius:'6px', cursor:'pointer', fontSize:'14px',
-    fontFamily:'serif', letterSpacing:'0.04em', zIndex:100,
-    backdropFilter:'blur(4px)',
-  });
-  btn.addEventListener('mouseenter', ()=>btn.style.background='rgba(90,50,10,0.9)');
-  btn.addEventListener('mouseleave', ()=>btn.style.background='rgba(20,12,4,0.82)');
-  document.body.appendChild(btn);
+export function toggleObjectsPanel() { if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; }
+export function closeObjectsPanel()  { if (panel) panel.style.display = 'none'; }
 
-  // Panel
+function buildUI() {
+  // Panel (toggle button replaced by decorateMenu dropdown)
   panel = document.createElement('div');
   Object.assign(panel.style, {
-    position:'fixed', top:'108px', left:'16px',
+    position:'fixed', top:'55px', left:'16px',
     background:'rgba(12,7,3,0.94)', border:'1px solid #6a4a20',
     borderRadius:'10px', padding:'18px 18px',
     color:'#f0e0c0', fontFamily:'serif', zIndex:200,
@@ -543,10 +531,6 @@ function buildUI() {
     maxHeight:'70vh', overflowY:'auto',
   });
   document.body.appendChild(panel);
-
-  btn.addEventListener('click', () => {
-    panel.style.display = panel.style.display==='none' ? 'block' : 'none';
-  });
 
   // Title
   const title = document.createElement('div');

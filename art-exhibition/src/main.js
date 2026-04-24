@@ -6,11 +6,17 @@ import { setWallMaterialMap } from './room.js';
 import { setWallMesh, addRaycastTarget, setHangingSlots } from './artwork.js';
 import { setBounds }       from './controls.js';
 import { createLighting }  from './lighting.js';
-import { createArtworks, tickVideoArtworks } from './artwork.js';
+import { createArtworks, tickVideoArtworks, getArtworks, isInteracting, tickEditMode } from './artwork.js';
+import { initHoverPreview, tickHoverPreview } from './artworkInfo.js';
 import { createInstallations } from './installation.js';
 import { initControls }    from './controls.js';
 import { initUI }          from './ui.js';
 import { setFloorMesh, initFloorUI } from './floor.js';
+import { initModeUI, setMode, MODES } from './userMode.js';
+import { showRoleSelect } from './roleSelect.js';
+import { initDecorateMenu } from './decorateMenu.js';
+import { initVisitorHUD }  from './visitorHUD.js';
+import { initMrHue, onArtistEnter } from './mrHue.js';
 
 // ─── Scene ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -41,7 +47,8 @@ scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 pmrem.dispose();
 
 // ─── Base lighting + controls (synchronous — work during loading too) ─────────
-scene.add(new THREE.AmbientLight(0xfff5e0, 0.3));
+const ambientLight = new THREE.AmbientLight(0xfff5e0, 0.3);
+scene.add(ambientLight);
 const controls = initControls(camera, renderer);
 
 // ─── Render loop starts immediately (loading screen covers canvas) ────────────
@@ -49,6 +56,8 @@ function animate() {
   requestAnimationFrame(animate);
   controls.tick();
   tickVideoArtworks(camera);
+  tickHoverPreview(camera, renderer, getArtworks(), isInteracting());
+  tickEditMode();
   renderer.render(scene, camera);
 }
 animate();
@@ -191,11 +200,33 @@ loader.load(
     // ── Initialise interactive systems ────────────────────────────────────────
     // createLighting(scene); // disabled: old room coords don't match new GLB
     createArtworks(scene, camera, renderer, controls);
+    initHoverPreview(renderer.domElement);
     createInstallations(scene, camera, renderer, controls);
     initUI();
     initFloorUI();
+    initModeUI();
+    initDecorateMenu();
+    initVisitorHUD();
+    initMrHue();
+
+    // ── Top-left toolbar: [Curator/Visitor] [Decorate] in one flex row ──────
+    const toolbar = document.createElement('div');
+    Object.assign(toolbar.style, {
+      position: 'fixed', top: '16px', left: '16px',
+      display: 'flex', alignItems: 'center', gap: '8px',
+      zIndex: 100,
+    });
+    document.body.appendChild(toolbar);
+    const modeBtn    = document.getElementById('mode-toggle-btn');
+    const decorateBtn = document.getElementById('decorate-trigger');
+    if (modeBtn)     toolbar.appendChild(modeBtn);
+    if (decorateBtn) toolbar.appendChild(decorateBtn);
 
     hideLoadingScreen();
+    showRoleSelect(role => {
+      setMode(role === 'curator' ? MODES.CURATOR : MODES.VISITOR);
+      if (role === 'curator') onArtistEnter();
+    });
   },
 
   // ── Progress ──────────────────────────────────────────────────────────────────
@@ -211,6 +242,12 @@ loader.load(
 );
 
 // ─── Resize ───────────────────────────────────────────────────────────────────
+// ─── Scene control API (used by mrHue.js) ────────────────────────────────────
+export function setAmbientLight(hexColor, intensity) {
+  if (hexColor  != null) ambientLight.color.set(hexColor);
+  if (intensity != null) ambientLight.intensity = intensity;
+}
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
