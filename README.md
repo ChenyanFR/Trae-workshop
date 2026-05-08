@@ -24,6 +24,7 @@ Click an artwork to view it fullscreen. Navigate between pieces with the arrow k
 ## Stack
 
 - Three.js — 3D rendering
+- Blender — gallery modeling
 - Vite — build tool
 - Claude API (Anthropic) — AI features
 
