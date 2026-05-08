@@ -1,5 +1,11 @@
 import { setControlsEnabled } from './controls.js';
 import { openDetail } from './artworkDetail.js';
+import { isCurator, onModeChange } from './userMode.js';
+import { retrieveRelevantKnowledge } from './artKnowledge.js';
+
+const API_URL   = 'https://api.anthropic.com/v1/messages';
+const API_KEY   = import.meta.env.VITE_ANTHROPIC_API_KEY ?? '';
+const API_MODEL = 'claude-sonnet-4-20250514';
 
 let _overlay  = null;
 let _artWrap  = null;
@@ -9,6 +15,9 @@ let _isOpen   = false;
 let _current  = null;
 let _artworks = [];
 let _index    = 0;
+let _qaContainer = null;
+let _qaInput     = null;
+let _qaAnswer    = null;
 
 export function isFocusOpen() { return _isOpen; }
 
@@ -179,6 +188,14 @@ function buildShell() {
   detailBtn.addEventListener('click', e => { e.stopPropagation(); goDetail(); });
   _overlay.appendChild(detailBtn);
 
+  // Q&A section — visitor only
+  _qaContainer = buildQASection();
+  _overlay.appendChild(_qaContainer);
+  onModeChange(() => {
+    if (!_qaContainer) return;
+    _qaContainer.style.display = isCurator() ? 'none' : 'flex';
+  });
+
   // Hint
   const hint = document.createElement('div');
   hint.textContent = '← → switch  ·  ESC close';
@@ -225,6 +242,8 @@ function rebuildContent(group, enterDir) {
   }
 
   _artWrap.innerHTML = '';
+  if (_qaInput)  { _qaInput.value = ''; _qaInput.disabled = false; }
+  if (_qaAnswer) { _qaAnswer.style.display = 'none'; _qaAnswer.textContent = ''; }
 
   if (group.userData.isVideo && group.userData.videoEl) {
     const vid = document.createElement('video');
@@ -262,4 +281,158 @@ function updateNav() {
   const show = _artworks.length > 1;
   _leftNav.style.display  = show ? 'flex' : 'none';
   _rightNav.style.display = show ? 'flex' : 'none';
+}
+
+// ─── Q&A section (visitor mode) ───────────────────────────────────────────────
+function buildQASection() {
+  const container = document.createElement('div');
+  Object.assign(container.style, {
+    display: isCurator() ? 'none' : 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    marginTop: '16px',
+    width: '340px',
+    maxWidth: 'calc(90vw - 160px)',
+    zIndex: 601,
+  });
+  container.addEventListener('click', e => e.stopPropagation());
+
+  const inputRow = document.createElement('div');
+  Object.assign(inputRow.style, { display: 'flex', gap: '8px' });
+
+  _qaInput = document.createElement('input');
+  _qaInput.type = 'text';
+  _qaInput.placeholder = 'Ask about this artwork...';
+  Object.assign(_qaInput.style, {
+    flex: '1',
+    background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.25)',
+    borderRadius: '8px',
+    color: '#fff',
+    fontSize: '13px',
+    fontFamily: 'Georgia, serif',
+    padding: '9px 12px',
+    outline: 'none',
+    letterSpacing: '0.02em',
+    transition: 'border-color 0.15s',
+  });
+  _qaInput.addEventListener('focus', () => { _qaInput.style.borderColor = 'rgba(255,255,255,0.5)'; });
+  _qaInput.addEventListener('blur',  () => { _qaInput.style.borderColor = 'rgba(255,255,255,0.25)'; });
+
+  const askBtn = document.createElement('button');
+  askBtn.textContent = 'ASK';
+  Object.assign(askBtn.style, {
+    padding: '9px 16px',
+    flexShrink: '0',
+    background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.4)',
+    borderRadius: '8px',
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: '11px',
+    fontFamily: 'Georgia, serif',
+    letterSpacing: '0.10em',
+    cursor: 'pointer',
+    transition: 'background 0.15s, color 0.15s',
+  });
+  askBtn.addEventListener('mouseenter', () => {
+    askBtn.style.background = 'rgba(255,255,255,0.12)';
+    askBtn.style.color = '#fff';
+  });
+  askBtn.addEventListener('mouseleave', () => {
+    askBtn.style.background = 'transparent';
+    askBtn.style.color = 'rgba(255,255,255,0.75)';
+  });
+
+  _qaAnswer = document.createElement('div');
+  Object.assign(_qaAnswer.style, {
+    display: 'none',
+    padding: '12px 16px',
+    background: 'rgba(0,0,0,0.45)',
+    borderRadius: '8px',
+    border: '1px solid rgba(255,255,255,0.12)',
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: '13px',
+    fontFamily: 'Georgia, serif',
+    lineHeight: '1.7',
+    letterSpacing: '0.01em',
+  });
+
+  async function doAsk() {
+    const query = _qaInput.value.trim();
+    if (!query) return;
+
+    _qaInput.disabled = true;
+    askBtn.disabled   = true;
+    _qaAnswer.style.display = 'block';
+    _qaAnswer.style.color   = 'rgba(255,255,255,0.45)';
+    _qaAnswer.textContent   = 'Mr. Hue is thinking…';
+
+    const info = _current?.userData?.info || {};
+    const knowledge = retrieveRelevantKnowledge(query, info);
+    const retrievedKnowledge = knowledge.length
+      ? knowledge.join('\n\n')
+      : 'No specific knowledge retrieved.';
+
+    const systemPrompt =
+`You are Mr. Hue, a knowledgeable gallery guide.
+Answer questions about the artwork currently in focus.
+
+Artwork information:
+- Title: ${info.title || 'Unknown'}
+- Artist: ${info.artist || 'Unknown'}
+- Year: ${info.year || 'Unknown'}
+- Medium: ${info.medium || 'Unknown'}
+- Description: ${info.description || 'No description available.'}
+
+Relevant art knowledge:
+${retrievedKnowledge}
+
+Answer in 2-3 sentences. Be informative but accessible.
+If the question is unrelated to art or this artwork, gently redirect.`;
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: API_MODEL,
+          max_tokens: 256,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: query }],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text().catch(() => res.statusText);
+        throw new Error(`HTTP ${res.status}: ${err}`);
+      }
+
+      const data = await res.json();
+      _qaAnswer.style.color = 'rgba(255,255,255,0.85)';
+      _qaAnswer.textContent = data.content?.[0]?.text ?? 'I\'m not sure how to answer that.';
+    } catch (err) {
+      console.error('[Focus QA] API error:', err);
+      _qaAnswer.style.color   = 'rgba(255,120,120,0.85)';
+      _qaAnswer.textContent   = 'Something went wrong. Please try again.';
+    } finally {
+      _qaInput.disabled = false;
+      askBtn.disabled   = false;
+    }
+  }
+
+  askBtn.addEventListener('click', doAsk);
+  _qaInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.stopPropagation(); doAsk(); }
+  });
+
+  inputRow.appendChild(_qaInput);
+  inputRow.appendChild(askBtn);
+  container.appendChild(inputRow);
+  container.appendChild(_qaAnswer);
+  return container;
 }
